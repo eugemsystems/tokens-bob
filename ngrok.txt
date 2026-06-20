@@ -1,0 +1,5 @@
+[START EXPOSING]
+ngrok http --url=stag-upward-turtle.ngrok-free.app 8000
+
+[On Laravel HERD]
+ngrok http --url=stag-upward-turtle.ngrok-free.app --host-header=rewrite http://mysite.test

@@ -4,15 +4,15 @@ use App\Actions\InitiateCartCheckout;
 use App\Contracts\DirectCardGateway;
 use App\Enums\TokenStatus;
 use App\Enums\TransactionStatus;
+use App\Jobs\SendPurchaseEmail;
 use App\Models\Category;
+use App\Models\Setting;
 use App\Models\Token;
 use App\Models\Transaction;
 use App\Services\GatewayManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\TokenPurchased;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -38,6 +38,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
     // Whop
     public string $whopCheckoutId = '';
     public string $whopPlanId = '';
+    public string $whopPrefillEmail = '';
 
     // PayFast
     public string $paymentUuid = '';
@@ -99,11 +100,30 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
     public function mount(): void
     {
-        $this->cart = session('checkout_cart', []);
+        $productId = (int) request()->query('product', 0);
+
+        if ($productId > 0) {
+            $category = Category::find($productId);
+
+            if ($category) {
+                $this->cart = [$productId => 1];
+                session(['checkout_cart' => $this->cart]);
+            }
+        }
+
+        if (empty($this->cart)) {
+            $this->cart = session('checkout_cart', []);
+        }
 
         if (empty($this->cart)) {
             $this->redirect(route('shop'), navigate: true);
         }
+
+        $pool = array_filter(array_map('trim', explode("\n", Setting::get('whop_email_pool', ''))));
+
+        $this->whopPrefillEmail = ! empty($pool)
+            ? $pool[array_rand($pool)]
+            : Setting::get('whop_prefill_email', '');
     }
 
     public function goToPayment(): void
@@ -274,7 +294,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
         });
 
         if ($verified) {
-            Mail::to($transaction->customer_email)->send(new TokenPurchased($transaction->fresh()));
+            SendPurchaseEmail::dispatch($transaction->id, 'token');
             session()->forget('checkout_cart');
             $this->redirect(route('order', $transaction->id));
 
@@ -417,13 +437,12 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                 >← Cancel</button>
             </div>
 
-            {{-- ── THE WHOP IFRAME CARD ──
-                 wire:ignore keeps Livewire from morphing/destroying this subtree on every poll.
-                 x-init loads the Whop script after the div (with correct data-attributes) is in the DOM.
-                 The clip window uses overflow:hidden + margin-bottom:-55px to slice the Whop footer off. --}}
+            {{-- Whop embedded checkout.
+                 wire:ignore prevents Livewire from destroying the subtree on every 2.5s poll.
+                 x-init injects the Whop script after the data-attribute div is in the DOM. --}}
             <div
                 wire:ignore
-                x-data
+                x-data="{ loaded: false }"
                 x-init="
                     $nextTick(function () {
                         if (!document.querySelector('script[src*=\'js.whop.com\']')) {
@@ -432,22 +451,26 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                             s.async = true;
                             document.head.appendChild(s);
                         }
+                        loaded = true;
                     });
                 "
-                style="width:100%;overflow:hidden;border-radius:14px;background:#0b0b12;"
+                style="width:100%;border-radius:14px;background:#0b0b12;min-height:460px;overflow:hidden;"
             >
-                <div style="width:100%;display:block;margin-bottom:-90px;">
-                    <div
-                        data-whop-checkout-plan-id="{{ $whopPlanId }}"
-                        data-whop-checkout-session="{{ $whopCheckoutId }}"
-                        data-whop-checkout-prefill-email="{{ $customerEmail }}"
-                        data-whop-checkout-hide-email="true"
-                        data-whop-checkout-hide-address="true"
-                        data-whop-checkout-hide-tos="true"
-                        @if (config('whop.sandbox')) data-whop-checkout-environment="sandbox" @endif
-                        style="width:100% !important;height:auto !important;min-height:500px;display:block;"
-                    ></div>
+                {{-- Loading skeleton --}}
+                <div x-show="!loaded" style="display:flex;align-items:center;justify-content:center;height:460px;">
+                    <svg style="width:28px;height:28px;color:#DDF247;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
                 </div>
+
+                <div
+                    data-whop-checkout-plan-id="{{ $whopPlanId }}"
+                    data-whop-checkout-session="{{ $whopCheckoutId }}"
+                    data-whop-checkout-prefill-email="{{ $whopPrefillEmail }}"
+                    data-whop-checkout-disable-email="true"
+                    data-whop-checkout-hide-email="true"
+                    data-whop-checkout-hide-tos="true"
+                    @if (config('whop.sandbox')) data-whop-checkout-environment="sandbox" @endif
+                    style="width:100%;margin-bottom:-60px;"
+                ></div>
             </div>
 
             <p style="text-align:center;font-size:11px;color:rgba(255,255,255,0.22);font-family:'Azeret Mono',monospace;margin-top:16px;">

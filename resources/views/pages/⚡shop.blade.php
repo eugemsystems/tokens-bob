@@ -147,8 +147,13 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                 'tokens as available_tokens_count' => fn ($q) => $q->where('status', TokenStatus::Available),
             ])->find($addId);
 
-            if ($category && $category->available_tokens_count > 0) {
-                $this->cart[$addId] = 1;
+            if ($category) {
+                if (! $category->is_token) {
+                    // Non-token: always alone
+                    $this->cart = [$addId => 1];
+                } elseif ($category->available_tokens_count > 0 && ! $this->cartHasNonTokenItem()) {
+                    $this->cart[$addId] = 1;
+                }
             }
         }
     }
@@ -157,7 +162,23 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
     {
         $category = $this->categories->firstWhere('id', $categoryId);
 
-        if (! $category || $category->available_tokens_count === 0) {
+        if (! $category) {
+            return;
+        }
+
+        if (! $category->is_token) {
+            // Non-token items are always alone in the cart — replace whatever was there
+            $this->cart = [$categoryId => 1];
+
+            return;
+        }
+
+        // Token item: block if cart already contains a non-token item
+        if ($this->cartHasNonTokenItem()) {
+            return;
+        }
+
+        if ($category->available_tokens_count === 0) {
             return;
         }
 
@@ -166,6 +187,17 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
         if ($current < $category->available_tokens_count) {
             $this->cart[$categoryId] = $current + 1;
         }
+    }
+
+    private function cartHasNonTokenItem(): bool
+    {
+        if (empty($this->cart)) {
+            return false;
+        }
+
+        return Category::whereIn('id', array_keys($this->cart))
+            ->where('is_token', false)
+            ->exists();
     }
 
     public function removeFromCart(int $categoryId): void

@@ -36,6 +36,15 @@
                     <flux:sidebar.item icon="users" :href="route('admin.admins')" :current="request()->routeIs('admin.admins')" wire:navigate>
                         {{ __('Admins') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="cog-6-tooth" :href="route('admin.settings')" :current="request()->routeIs('admin.settings')" wire:navigate>
+                        {{ __('Settings') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="arrow-down-tray" :href="route('admin.webhook-logs')" :current="request()->routeIs('admin.webhook-logs')" wire:navigate>
+                        {{ __('Webhook Logs') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="queue-list" :href="route('admin.queue')" :current="request()->routeIs('admin.queue')" wire:navigate>
+                        {{ __('Queue') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

@@ -46,7 +46,7 @@ new #[Title('Token Store')] #[Layout('layouts.public')] class extends Component
     {
         return Category::withCount([
             'tokens as available_tokens_count' => fn ($q) => $q->where('status', TokenStatus::Available),
-        ])->orderBy('price')->get();
+        ])->latest()->limit(6)->get();
     }
 
     #[Computed]

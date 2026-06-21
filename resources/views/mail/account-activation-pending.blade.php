@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Your Purchase — {{ config('app.name') }}</title>
+    <title>Your {{ $category->name }} is being activated — {{ config('app.name') }}</title>
 </head>
 <body style="margin:0;padding:0;background:#0f0f0f;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
 
@@ -16,7 +16,7 @@
                     <tr>
                         <td style="background:#161616;border-radius:16px 16px 0 0;padding:32px 40px;border-bottom:1px solid #2a2a2a;text-align:center;">
                             <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:4px;color:#666;">{{ config('app.name') }}</p>
-                            <h1 style="margin:0;font-size:26px;font-weight:900;color:#fff;">Your tokens are ready</h1>
+                            <h1 style="margin:0;font-size:26px;font-weight:900;color:#fff;">We're activating your account</h1>
                             <p style="margin:12px 0 0;font-size:14px;color:#888;">Order #{{ $transaction->id }} &middot; {{ $transaction->created_at->format('d M Y') }}</p>
                         </td>
                     </tr>
@@ -33,7 +33,7 @@
                                                     &#10003; &nbsp;Payment confirmed &mdash; R{{ number_format($transaction->amount, 2) }}
                                                 </td>
                                                 <td align="right" style="font-size:12px;color:#22c55e;">
-                                                    {{ strtoupper($transaction->gateway) }}
+                                                    Secure Payment
                                                 </td>
                                             </tr>
                                         </table>
@@ -43,52 +43,64 @@
                         </td>
                     </tr>
 
-                    {{-- TOKEN CODES --}}
+                    {{-- PRODUCT DETAILS --}}
                     <tr>
                         <td style="background:#1a1a1a;padding:28px 40px;">
-                            <p style="margin:0 0 18px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#555;">
-                                Your Token{{ $tokens->count() > 1 ? 's' : '' }}
-                            </p>
-
-                            @foreach ($tokens as $token)
-                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+                            <p style="margin:0 0 18px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#555;">What you purchased</p>
+                            <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:18px 20px;">
-                                        <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#ccc;">{{ $token['name'] }}</p>
-                                        @if ($token['description'])
-                                        <p style="margin:0 0 14px;font-size:12px;color:#555;line-height:1.5;">{{ $token['description'] }}</p>
+                                    <td style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:20px;">
+                                        <p style="margin:0 0 6px;font-size:17px;font-weight:900;color:#fff;">{{ $category->name }}</p>
+                                        @if ($category->description)
+                                        <p style="margin:0;font-size:13px;color:#666;line-height:1.6;">{{ $category->description }}</p>
                                         @endif
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    {{-- STATUS NOTICE --}}
+                    <tr>
+                        <td style="background:#161616;padding:24px 40px;border-top:1px solid #2a2a2a;border-bottom:1px solid #2a2a2a;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td style="background:#13100a;border:1px solid #3a2c00;border-radius:12px;padding:20px 22px;">
                                         <table width="100%" cellpadding="0" cellspacing="0">
                                             <tr>
-                                                <td style="background:#0a0a0a;border:1px solid #333;border-radius:8px;padding:12px 16px;">
-                                                    <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#555;">Token Code</p>
-                                                    <p style="margin:0;font-size:22px;font-weight:900;letter-spacing:4px;color:#DDF247;font-family:'Courier New',Courier,monospace;">{{ $token['code'] }}</p>
+                                                <td width="36" valign="top">
+                                                    <div style="width:28px;height:28px;background:#DDF247;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;line-height:28px;font-size:14px;">&#x23F1;</div>
+                                                </td>
+                                                <td style="padding-left:12px;">
+                                                    <p style="margin:0 0 4px;font-size:14px;font-weight:800;color:#DDF247;">Your account is being activated</p>
+                                                    <p style="margin:0;font-size:13px;color:#999;line-height:1.6;">
+                                                        This usually takes about <strong style="color:#fff;">1 minute</strong>. Please check back shortly &mdash; your access will be ready soon.
+                                                    </p>
                                                 </td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
-                            @endforeach
                         </td>
                     </tr>
 
-                    {{-- HOW TO REDEEM --}}
+                    {{-- WHAT TO DO NEXT --}}
                     <tr>
-                        <td style="background:#161616;padding:24px 40px;border-top:1px solid #2a2a2a;border-bottom:1px solid #2a2a2a;">
-                            <p style="margin:0 0 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#555;">How to redeem</p>
+                        <td style="background:#1a1a1a;padding:24px 40px;border-bottom:1px solid #2a2a2a;">
+                            <p style="margin:0 0 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#555;">What happens next</p>
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td width="24" valign="top" style="color:#DDF247;font-size:13px;font-weight:900;padding-top:1px;">1.</td>
-                                    <td style="font-size:13px;color:#888;line-height:1.6;padding-bottom:8px;">Copy the token code shown above.</td>
+                                    <td style="font-size:13px;color:#888;line-height:1.6;padding-bottom:8px;">We are processing your activation right now.</td>
                                 </tr>
                                 <tr>
                                     <td width="24" valign="top" style="color:#DDF247;font-size:13px;font-weight:900;padding-top:1px;">2.</td>
-                                    <td style="font-size:13px;color:#888;line-height:1.6;padding-bottom:8px;">Go to the product's official redemption page.</td>
+                                    <td style="font-size:13px;color:#888;line-height:1.6;padding-bottom:8px;">Wait approximately <strong style="color:#fff;">1 minute</strong> for the process to complete.</td>
                                 </tr>
                                 <tr>
                                     <td width="24" valign="top" style="color:#DDF247;font-size:13px;font-weight:900;padding-top:1px;">3.</td>
-                                    <td style="font-size:13px;color:#888;line-height:1.6;">Enter the code exactly as shown and follow the on-screen steps.</td>
+                                    <td style="font-size:13px;color:#888;line-height:1.6;">Your account will be active and ready to use.</td>
                                 </tr>
                             </table>
                         </td>

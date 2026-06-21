@@ -15,10 +15,18 @@ new #[Title('Payment Gateways')] class extends Component
     #[Validate('nullable|url|max:500')]
     public string $webhookUrl = '';
 
+    #[Validate('nullable|email|max:254')]
+    public string $whopPrefillEmail = '';
+
+    #[Validate('nullable|string|max:20000')]
+    public string $whopEmailPool = '';
+
     public function mount(): void
     {
         $this->defaultGateway = Setting::get('default_gateway', 'payfast');
         $this->webhookUrl = Setting::get('webhook_url', '');
+        $this->whopPrefillEmail = Setting::get('whop_prefill_email', '');
+        $this->whopEmailPool = Setting::get('whop_email_pool', '');
     }
 
     #[Computed]
@@ -53,6 +61,20 @@ new #[Title('Payment Gateways')] class extends Component
         $this->validateOnly('webhookUrl');
         Setting::set('webhook_url', $this->webhookUrl);
         Flux::toast(variant: 'success', text: 'Webhook URL saved.');
+    }
+
+    public function saveWhopSettings(): void
+    {
+        $this->validateOnly('whopPrefillEmail');
+        $this->validateOnly('whopEmailPool');
+        Setting::set('whop_prefill_email', $this->whopPrefillEmail);
+        Setting::set('whop_email_pool', $this->whopEmailPool);
+        Flux::toast(variant: 'success', text: 'Whop settings saved.');
+    }
+
+    public function poolEmailCount(): int
+    {
+        return count(array_filter(array_map('trim', explode("\n", $this->whopEmailPool))));
     }
 }; ?>
 
@@ -132,6 +154,54 @@ new #[Title('Payment Gateways')] class extends Component
                 Active — <span class="font-mono text-zinc-400">{{ $webhookUrl }}</span>
             </div>
         @endif
+    </div>
+
+    <flux:separator />
+
+    {{-- Whop Settings --}}
+    <div class="space-y-6">
+        <div>
+            <flux:heading size="lg">Whop Settings</flux:heading>
+            <flux:text class="mt-1 text-zinc-400">
+                Configure the email pre-filled into the Whop checkout embed. The system randomly picks from the pool on each checkout; falls back to the default if the pool is empty.
+            </flux:text>
+        </div>
+
+        {{-- Default fallback email --}}
+        <div>
+            <flux:input
+                wire:model="whopPrefillEmail"
+                label="Default Prefill Email"
+                type="email"
+                placeholder="your-whop-account@example.com"
+                description="Used when the email pool below is empty."
+            />
+            @if ($whopPrefillEmail)
+                <div class="mt-2 flex items-center gap-2 text-xs text-green-400">
+                    <flux:icon.check-circle class="size-4" />
+                    Default — <span class="font-mono text-zinc-400">{{ $whopPrefillEmail }}</span>
+                </div>
+            @endif
+        </div>
+
+        {{-- Email pool --}}
+        <div>
+            <flux:textarea
+                wire:model="whopEmailPool"
+                label="Email Pool"
+                placeholder="account1@example.com&#10;account2@example.com&#10;account3@example.com"
+                rows="6"
+                description="One email per line. A random one is picked each checkout. Leave empty to always use the default above."
+            />
+            @if ($this->poolEmailCount() > 0)
+                <div class="mt-2 flex items-center gap-2 text-xs text-blue-400">
+                    <flux:icon.inbox-stack class="size-4" />
+                    {{ $this->poolEmailCount() }} email{{ $this->poolEmailCount() === 1 ? '' : 's' }} in pool — random selection active
+                </div>
+            @endif
+        </div>
+
+        <flux:button wire:click="saveWhopSettings" variant="primary">Save Whop Settings</flux:button>
     </div>
 
     <flux:separator />

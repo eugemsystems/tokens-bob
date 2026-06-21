@@ -4,38 +4,50 @@ namespace App\Http\Controllers;
 
 use App\Enums\TokenStatus;
 use App\Enums\TransactionStatus;
-use App\Mail\TokenPurchased;
+use App\Jobs\FireWebhookJob;
+use App\Jobs\SendPurchaseEmail;
 use App\Models\Setting;
 use App\Models\Token;
 use App\Models\Transaction;
+use App\Models\WebhookLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class WhopWebhookController extends Controller
 {
     public function __invoke(Request $request): Response
     {
         $body = $request->getContent();
+        $payload = json_decode($body, true);
+        $type = $payload['type'] ?? null;
 
-        Log::info('Whop: webhook received', ['id' => $request->header('webhook-id')]);
+        $log = WebhookLog::create([
+            'source' => 'whop',
+            'event_type' => $type,
+            'payload' => $body,
+            'headers' => json_encode($request->headers->all()),
+            'status' => 'received',
+            'ip_address' => $request->ip(),
+        ]);
+
+        Log::info('Whop: webhook received', ['id' => $request->header('webhook-id'), 'log_id' => $log->id]);
 
         if (! $this->verifySignature($request, $body)) {
             Log::warning('Whop: invalid webhook signature');
+            $log->update(['status' => 'failed', 'response_code' => 400]);
 
             return response('Invalid signature', 400);
         }
 
-        $payload = json_decode($body, true);
-        $type = $payload['type'] ?? null;
         $data = $payload['data'] ?? [];
 
         Log::info('Whop: webhook event', ['type' => $type]);
 
         if (! in_array($type, ['payment.succeeded', 'payment.failed'])) {
+            $log->update(['status' => 'processed', 'response_code' => 200]);
+
             return response('OK', 200);
         }
 
@@ -65,7 +77,7 @@ class WhopWebhookController extends Controller
         DB::transaction(function () use ($transaction, $type, $whopPaymentId, &$tokensSold): void {
             if ($type === 'payment.succeeded') {
                 $transaction->update([
-                    'status'             => TransactionStatus::Completed,
+                    'status' => TransactionStatus::Completed,
                     'gateway_payment_id' => $whopPaymentId ?? $transaction->gateway_payment_id,
                 ]);
 
@@ -85,32 +97,27 @@ class WhopWebhookController extends Controller
 
         if ($type === 'payment.succeeded') {
             if ($tokensSold) {
-                Mail::to($transaction->customer_email)->send(new TokenPurchased($transaction->fresh()));
+                SendPurchaseEmail::dispatch($transaction->id, 'token');
             }
 
             if ($transaction->is_webhook_purchase) {
-                $this->fireWebhook($transaction->customer_email);
+                $url = Setting::get('webhook_url', '');
+
+                if ($url) {
+                    FireWebhookJob::dispatch($url, $transaction->customer_email);
+                }
+
+                $categoryId = $transaction->fresh()->category_id;
+
+                if ($categoryId) {
+                    SendPurchaseEmail::dispatch($transaction->id, 'activation', $categoryId);
+                }
             }
         }
 
+        $log->update(['status' => 'processed', 'response_code' => 200]);
+
         return response('OK', 200);
-    }
-
-    private function fireWebhook(string $email): void
-    {
-        $url = Setting::get('webhook_url', '');
-
-        if (! $url) {
-            return;
-        }
-
-        try {
-            Http::post($url, ['email' => $email]);
-
-            Log::info('Whop: webhook URL fired', ['url' => $url]);
-        } catch (\Throwable $e) {
-            Log::error('Whop: webhook URL failed', ['url' => $url, 'error' => $e->getMessage()]);
-        }
     }
 
     private function verifySignature(Request $request, string $body): bool
@@ -131,7 +138,7 @@ class WhopWebhookController extends Controller
 
         $signedContent = "{$webhookId}.{$webhookTimestamp}.{$body}";
         // Whop signs with the full ws_xxx secret string verbatim (no decoding)
-        $expectedHash  = base64_encode(hash_hmac('sha256', $signedContent, $secret, true));
+        $expectedHash = base64_encode(hash_hmac('sha256', $signedContent, $secret, true));
 
         foreach (explode(' ', $webhookSignature) as $sig) {
             if (str_starts_with($sig, 'v1,') && hash_equals($expectedHash, substr($sig, 3))) {

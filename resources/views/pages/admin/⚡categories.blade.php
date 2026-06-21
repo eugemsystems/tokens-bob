@@ -54,6 +54,10 @@ new #[Title('Categories')] class extends Component
     public ?int $deletingId = null;
     public bool $showDeleteConfirm = false;
 
+    // Checkout URL popup
+    public bool $showCheckoutUrlModal = false;
+    public string $checkoutUrl = '';
+
     #[Computed]
     public function categories(): LengthAwarePaginator
     {
@@ -250,6 +254,12 @@ new #[Title('Categories')] class extends Component
         }
     }
 
+    public function openCheckoutUrl(int $id): void
+    {
+        $this->checkoutUrl = route('checkout').'?product='.$id;
+        $this->showCheckoutUrlModal = true;
+    }
+
     public function confirmDelete(int $id): void
     {
         $this->deletingId = $id;
@@ -350,6 +360,16 @@ new #[Title('Categories')] class extends Component
 
                         <flux:table.cell align="end">
                             <div class="flex items-center justify-end gap-1">
+                                @if (! $category->is_token)
+                                    <flux:tooltip content="Checkout URL">
+                                        <flux:button
+                                            wire:click="openCheckoutUrl({{ $category->id }})"
+                                            variant="ghost"
+                                            size="sm"
+                                            icon="link"
+                                        />
+                                    </flux:tooltip>
+                                @endif
                                 <flux:button
                                     wire:click="openEdit({{ $category->id }})"
                                     variant="ghost"
@@ -556,6 +576,34 @@ new #[Title('Categories')] class extends Component
                 </flux:button>
             </div>
         </form>
+    </flux:modal>
+
+    {{-- ── Checkout URL ── --}}
+    <flux:modal wire:model="showCheckoutUrlModal" class="md:w-xl">
+        <flux:heading size="lg">Checkout URL</flux:heading>
+        <flux:text class="mt-1 text-zinc-400">
+            Share this link to send customers directly to the checkout for this product.
+        </flux:text>
+
+        <div
+            x-data="{ copied: false }"
+            class="mt-5 space-y-3"
+        >
+            <div class="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5">
+                <flux:icon.link class="size-4 shrink-0 text-zinc-500" />
+                <p class="flex-1 truncate font-mono text-sm text-zinc-200">{{ $checkoutUrl }}</p>
+            </div>
+
+            <flux:button
+                x-on:click="navigator.clipboard.writeText('{{ $checkoutUrl }}'); copied = true; setTimeout(() => copied = false, 2000)"
+                variant="primary"
+                icon="clipboard-document"
+                class="w-full"
+            >
+                <span x-show="!copied">Copy URL</span>
+                <span x-show="copied" x-cloak>Copied!</span>
+            </flux:button>
+        </div>
     </flux:modal>
 
     {{-- ── Delete Confirmation ── --}}

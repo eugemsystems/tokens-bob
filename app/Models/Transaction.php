@@ -6,6 +6,7 @@ use App\Enums\TransactionStatus;
 use Database\Factories\TransactionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -23,15 +24,21 @@ class Transaction extends Model
         'gateway',
         'gateway_payment_id',
         'is_webhook_purchase',
+        'category_id',
     ];
 
     protected function casts(): array
     {
         return [
-            'amount'              => 'decimal:2',
-            'status'              => TransactionStatus::class,
+            'amount' => 'decimal:2',
+            'status' => TransactionStatus::class,
             'is_webhook_purchase' => 'boolean',
         ];
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 
     public function token(): HasOne

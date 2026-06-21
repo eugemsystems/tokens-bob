@@ -192,20 +192,25 @@
         <header id="site-header">
             <div id="site-header-inner">
                 {{-- Logo --}}
+                @php $__siteLogo = cache()->remember('setting.logo', 300, fn () => \App\Models\Setting::get('logo', '')); @endphp
                 <a href="{{ route('home') }}" wire:navigate style="display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;">
-                    <div style="width:32px;height:32px;border-radius:8px;background:#DDF247;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="#111"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z"/></svg>
-                    </div>
+                    @if ($__siteLogo)
+                        <img src="{{ $__siteLogo }}" alt="{{ config('app.name') }}" style="height:32px;max-width:120px;object-fit:contain;flex-shrink:0;" />
+                    @else
+                        <div style="width:32px;height:32px;border-radius:8px;background:#DDF247;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="#111"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z"/></svg>
+                        </div>
+                    @endif
                     <span style="font-size:18px;font-weight:800;letter-spacing:-0.3px;color:#fff;font-family:'Manrope',sans-serif;">{{ config('app.name') }}</span>
                 </a>
 
                 {{-- Nav --}}
                 <nav class="site-nav">
-                    <a href="#hero-section" class="nav-link" data-section="hero-section">Home</a>
-                    <a href="#store" class="nav-link" data-section="store">Shop</a>
-                    <a href="#how-it-works" class="nav-link" data-section="how-it-works">How It Works</a>
-                    <a href="#about" class="nav-link" data-section="about">About</a>
-                    <a href="#faq" class="nav-link" data-section="faq">FAQ</a>
+                    <a href="{{ route('home') }}#hero-section" class="nav-link">Home</a>
+                    <a href="{{ route('shop') }}" wire:navigate class="nav-link">Shop</a>
+                    <a href="{{ route('home') }}#how-it-works" class="nav-link">How It Works</a>
+                    <a href="{{ route('home') }}#about" class="nav-link">About</a>
+                    <a href="{{ route('home') }}#faq" class="nav-link">FAQ</a>
                 </nav>
 
                 {{-- Actions --}}
@@ -231,9 +236,13 @@
                     {{-- Brand --}}
                     <div>
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-                            <div style="width:32px;height:32px;border-radius:8px;background:#DDF247;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                                <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="#111"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z"/></svg>
-                            </div>
+                            @if ($__siteLogo)
+                                <img src="{{ $__siteLogo }}" alt="{{ config('app.name') }}" style="height:28px;max-width:110px;object-fit:contain;flex-shrink:0;" />
+                            @else
+                                <div style="width:32px;height:32px;border-radius:8px;background:#DDF247;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                    <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="#111"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z"/></svg>
+                                </div>
+                            @endif
                             <span style="font-size:16px;font-weight:800;color:#fff;font-family:'Manrope',sans-serif;">{{ config('app.name') }}</span>
                         </div>
                         <p style="color:rgba(255,255,255,0.50);font-family:'Azeret Mono',monospace;font-size:13px;line-height:22px;">
@@ -244,19 +253,19 @@
                     <div>
                         <p class="footer-col-title">Shop</p>
                         <ul class="footer-links">
-                            <li><a href="#store">Gaming Tokens</a></li>
-                            <li><a href="#store">Streaming Tokens</a></li>
-                            <li><a href="#store">Shopping Vouchers</a></li>
-                            <li><a href="#store">All Tokens</a></li>
+                            <li><a href="{{ route('home') }}#store">Gaming Tokens</a></li>
+                            <li><a href="{{ route('home') }}#store">Streaming Tokens</a></li>
+                            <li><a href="{{ route('home') }}#store">Shopping Vouchers</a></li>
+                            <li><a href="{{ route('home') }}#store">All Tokens</a></li>
                         </ul>
                     </div>
                     {{-- Company --}}
                     <div>
                         <p class="footer-col-title">Company</p>
                         <ul class="footer-links">
-                            <li><a href="#about">About Us</a></li>
-                            <li><a href="#how-it-works">How It Works</a></li>
-                            <li><a href="#faq">FAQ</a></li>
+                            <li><a href="{{ route('home') }}#about">About Us</a></li>
+                            <li><a href="{{ route('home') }}#how-it-works">How It Works</a></li>
+                            <li><a href="{{ route('home') }}#faq">FAQ</a></li>
                         </ul>
                     </div>
                     {{-- Legal --}}
@@ -329,13 +338,30 @@
                 });
             })();
 
-            // Smooth scroll for anchor links
-            document.querySelectorAll('a[href^="#"]').forEach(a => {
-                a.addEventListener('click', e => {
-                    const target = document.querySelector(a.getAttribute('href'));
-                    if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+            // Smooth scroll for anchor links (works on same page or after navigation)
+            function bindSmoothScroll() {
+                document.querySelectorAll('a[href*="#"]').forEach(a => {
+                    a.addEventListener('click', e => {
+                        const hash = a.getAttribute('href').split('#')[1];
+                        if (!hash) return;
+                        const target = document.getElementById(hash);
+                        if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+                        // No target on this page — let normal navigation proceed to the full URL
+                    });
                 });
-            });
+            }
+            bindSmoothScroll();
+            document.addEventListener('livewire:navigated', bindSmoothScroll);
+
+            // Scroll to hash section after navigating to home page with a #hash
+            function scrollToHash() {
+                if (window.location.hash) {
+                    const target = document.getElementById(window.location.hash.slice(1));
+                    if (target) { setTimeout(() => target.scrollIntoView({ behavior: 'smooth' }), 150); }
+                }
+            }
+            scrollToHash();
+            document.addEventListener('livewire:navigated', scrollToHash);
 
             // Spider web canvas + hero parallax
             (function () {

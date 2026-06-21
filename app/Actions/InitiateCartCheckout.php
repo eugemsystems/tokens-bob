@@ -29,18 +29,20 @@ class InitiateCartCheckout
         try {
             ['transaction' => $transaction, 'description' => $description] = DB::transaction(
                 function () use ($cart, $customerData, $gateway): array {
-                    $totalAmount      = 0.0;
-                    $reservedTokens   = [];
-                    $categoryNames    = [];
-                    $hasWebhookItems  = false;
+                    $totalAmount = 0.0;
+                    $reservedTokens = [];
+                    $categoryNames = [];
+                    $hasWebhookItems = false;
+                    $webhookCategoryId = null;
 
                     foreach ($cart as $categoryId => $qty) {
-                        $category        = Category::findOrFail($categoryId);
+                        $category = Category::findOrFail($categoryId);
                         $categoryNames[] = $qty > 1 ? "{$category->name} ×{$qty}" : $category->name;
                         $totalAmount += (float) $category->price * $qty;
 
                         if (! $category->is_token) {
                             $hasWebhookItems = true;
+                            $webhookCategoryId = $category->id;
 
                             continue;
                         }
@@ -61,12 +63,13 @@ class InitiateCartCheckout
                     }
 
                     $transaction = Transaction::create([
-                        'customer_email'      => $customerData['email'],
-                        'customer_phone'      => $customerData['phone'],
-                        'amount'              => $totalAmount,
-                        'status'              => TransactionStatus::Pending,
-                        'gateway'             => $gateway->getKey(),
+                        'customer_email' => $customerData['email'],
+                        'customer_phone' => $customerData['phone'],
+                        'amount' => $totalAmount,
+                        'status' => TransactionStatus::Pending,
+                        'gateway' => $gateway->getKey(),
                         'is_webhook_purchase' => $hasWebhookItems,
+                        'category_id' => $webhookCategoryId,
                     ]);
 
                     foreach ($reservedTokens as $token) {
@@ -81,11 +84,11 @@ class InitiateCartCheckout
             );
         } catch (\RuntimeException $e) {
             return [
-                'success'        => false,
-                'checkout_type'  => $gateway->getCheckoutType(),
-                'data'           => [],
+                'success' => false,
+                'checkout_type' => $gateway->getCheckoutType(),
+                'data' => [],
                 'transaction_id' => null,
-                'message'        => $e->getMessage(),
+                'message' => $e->getMessage(),
             ];
         }
 
@@ -100,20 +103,20 @@ class InitiateCartCheckout
             });
 
             return [
-                'success'        => false,
-                'checkout_type'  => $gateway->getCheckoutType(),
-                'data'           => [],
+                'success' => false,
+                'checkout_type' => $gateway->getCheckoutType(),
+                'data' => [],
                 'transaction_id' => null,
-                'message'        => $result['message'],
+                'message' => $result['message'],
             ];
         }
 
         return [
-            'success'        => true,
-            'checkout_type'  => $result['checkout_type'],
-            'data'           => $result['data'],
+            'success' => true,
+            'checkout_type' => $result['checkout_type'],
+            'data' => $result['data'],
             'transaction_id' => $transaction->id,
-            'message'        => '',
+            'message' => '',
         ];
     }
 }

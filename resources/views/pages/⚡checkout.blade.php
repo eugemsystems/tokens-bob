@@ -485,8 +485,8 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
     ══════════════════════════════════════════════════════════════════════════ --}}
     @else
 
-        <div style="max-width:1100px;margin:0 auto;padding:40px 24px 80px;">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;">
+        <div style="max-width:1100px;margin:0 auto;padding:40px 24px 80px;overflow:hidden;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;min-width:0;">
 
                 {{-- ── LEFT: ORDER SUMMARY ── --}}
                 <div style="display:flex;flex-direction:column;gap:16px;">
@@ -498,10 +498,10 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                             @php $qty = $this->cart[$categoryId] ?? 0; @endphp
                             @if ($qty > 0)
                                 <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.05);gap:12px;">
-                                    <div style="flex:1;min-width:0;">
+                                    <div style="flex:1;min-width:0;overflow:hidden;">
                                         <p style="font-size:14px;font-weight:700;color:#fff;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $cat->name }}</p>
                                         @if ($cat->description)
-                                            <p style="font-size:12px;color:rgba(255,255,255,0.35);margin:0;font-family:'Azeret Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $cat->description }}</p>
+                                            <p style="font-size:12px;color:rgba(255,255,255,0.35);margin:0;font-family:'Azeret Mono',monospace;overflow-wrap:break-word;word-break:break-word;">{{ $cat->description }}</p>
                                         @endif
                                     </div>
                                     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
@@ -665,6 +665,11 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @media (max-width: 700px) {
             [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 480px) {
+            [style*="justify-content:space-between"][style*="align-items:center"][style*="gap:12px"] {
+                flex-wrap: wrap;
+            }
         }
     </style>
 

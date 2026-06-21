@@ -1,4 +1,6 @@
 /.phpunit.cache
+/database/*.sqlite
+/database/*.sqlite-journal
 /node_modules
 /public/build
 /public/fonts-manifest.dev.json

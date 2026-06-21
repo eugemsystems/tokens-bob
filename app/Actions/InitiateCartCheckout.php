@@ -19,7 +19,7 @@ class InitiateCartCheckout
      * Webhook-type categories (is_token = false) are included in the total but don't reserve tokens.
      *
      * @param  array<int, int>  $cart  category_id => quantity
-     * @param  array{email: string, phone: string}  $customerData
+     * @param  array{email: string, phone: string, ip: string|null}  $customerData
      * @return array{success: bool, checkout_type: string, data: array<string, mixed>, transaction_id: int|null, message: string}
      */
     public function execute(array $cart, array $customerData): array
@@ -65,6 +65,7 @@ class InitiateCartCheckout
                     $transaction = Transaction::create([
                         'customer_email' => $customerData['email'],
                         'customer_phone' => $customerData['phone'],
+                        'customer_ip' => $customerData['ip'] ?? null,
                         'amount' => $totalAmount,
                         'status' => TransactionStatus::Pending,
                         'gateway' => $gateway->getKey(),

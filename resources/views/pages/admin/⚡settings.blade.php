@@ -201,7 +201,12 @@ new #[Title('Site Settings')] class extends Component
                 <flux:button wire:click="saveLogo" variant="primary">Save Logo</flux:button>
             </div>
             @if ($logoUpload)
-                <img src="{{ $logoUpload->temporaryUrl() }}" alt="Preview" class="mt-3 h-12 max-w-[180px] object-contain rounded-lg border border-zinc-700 bg-zinc-800 p-2" />
+                @php try { $logoPreviewUrl = $logoUpload->temporaryUrl(); } catch (\Throwable) { $logoPreviewUrl = null; } @endphp
+                @if ($logoPreviewUrl)
+                    <img src="{{ $logoPreviewUrl }}" alt="Preview" class="mt-3 h-12 max-w-[180px] object-contain rounded-lg border border-zinc-700 bg-zinc-800 p-2" />
+                @else
+                    <p class="mt-3 text-xs text-zinc-400">Selected: <span class="text-zinc-200">{{ $logoUpload->getClientOriginalName() }}</span></p>
+                @endif
             @endif
         @endif
     </div>
@@ -291,7 +296,12 @@ new #[Title('Site Settings')] class extends Component
                 <flux:button wire:click="saveFavicon" variant="primary">Save Favicon</flux:button>
             </div>
             @if ($faviconUpload)
-                <img src="{{ $faviconUpload->temporaryUrl() }}" alt="Preview" class="mt-3 h-10 w-10 object-contain rounded border border-zinc-700 bg-zinc-800 p-1" />
+                @php try { $faviconPreviewUrl = $faviconUpload->temporaryUrl(); } catch (\Throwable) { $faviconPreviewUrl = null; } @endphp
+                @if ($faviconPreviewUrl)
+                    <img src="{{ $faviconPreviewUrl }}" alt="Preview" class="mt-3 h-10 w-10 object-contain rounded border border-zinc-700 bg-zinc-800 p-1" />
+                @else
+                    <p class="mt-3 text-xs text-zinc-400">Selected: <span class="text-zinc-200">{{ $faviconUpload->getClientOriginalName() }}</span></p>
+                @endif
             @endif
         @endif
     </div>

@@ -7,15 +7,16 @@
 @endphp
 
 @if($sidebar)
-    <flux:sidebar.brand name="{{ config('app.name') }}" {{ $attributes }}>
-        <x-slot name="logo" class="flex aspect-square size-8 items-center justify-center rounded-md {{ $customLogo ? '' : 'bg-accent-content text-accent-foreground' }} overflow-hidden">
+    <a {{ $attributes }} class="flex flex-col items-center gap-1.5 py-2 text-center">
+        <div class="flex size-40 items-center justify-center rounded-xl {{ $customLogo ? '' : 'bg-zinc-700' }} overflow-hidden" >
             @if ($customLogo)
-                <img src="{{ $customLogo }}" alt="{{ config('app.name') }}" class="h-full w-full object-contain" />
+                <img src="{{ $customLogo }}" alt="{{ config('app.name') }}" class="object-contain"  />
             @else
-                <x-app-logo-icon class="size-5 fill-current text-white dark:text-black" />
+                <x-app-logo-icon class="size-6 fill-current text-white" />
             @endif
-        </x-slot>
-    </flux:sidebar.brand>
+        </div>
+        <span class="text-xs font-semibold tracking-wide text-zinc-200">{{ config('app.name') }}</span>
+    </a>
 @else
     <flux:brand name="{{ config('app.name') }}" {{ $attributes }}>
         <x-slot name="logo" class="flex aspect-square size-8 items-center justify-center rounded-md {{ $customLogo ? '' : 'bg-accent-content text-accent-foreground' }} overflow-hidden">

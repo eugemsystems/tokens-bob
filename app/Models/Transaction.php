@@ -19,6 +19,7 @@ class Transaction extends Model
         'pf_payment_id',
         'customer_email',
         'customer_phone',
+        'customer_ip',
         'amount',
         'status',
         'gateway',

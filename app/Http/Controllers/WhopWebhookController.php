@@ -104,13 +104,16 @@ class WhopWebhookController extends Controller
                 $url = Setting::get('webhook_url', '');
 
                 if ($url) {
-                    FireWebhookJob::dispatch($url, $transaction->customer_email);
-                }
+                    $fresh = $transaction->fresh();
+                    $product = $fresh->category?->name ?? 'Unknown Product';
 
-                $categoryId = $transaction->fresh()->category_id;
-
-                if ($categoryId) {
-                    SendPurchaseEmail::dispatch($transaction->id, 'activation', $categoryId);
+                    FireWebhookJob::dispatch(
+                        $url,
+                        $fresh->customer_email,
+                        $fresh->customer_phone ?? '',
+                        $product,
+                        $fresh->customer_ip ?? '',
+                    );
                 }
             }
         }

@@ -2,6 +2,22 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
+        @production
+        <script src="https://cdn.jsdelivr.net/npm/disable-devtool@latest/disable-devtool.min.js"></script>
+        <script>
+            DisableDevtool({
+                disableMenu: true,
+                clearLog: true,
+                detectorWorker: true,
+                ondevtoolopen: function () {
+                    document.open('text/html', 'replace');
+                    document.write('');
+                    document.close();
+                    window.location.replace('about:blank');
+                },
+            });
+        </script>
+        @endproduction
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -195,13 +211,12 @@
                 @php $__siteLogo = cache()->remember('setting.logo', 300, fn () => \App\Models\Setting::get('logo', '')); @endphp
                 <a href="{{ route('home') }}" wire:navigate style="display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;">
                     @if ($__siteLogo)
-                        <img src="{{ $__siteLogo }}" alt="{{ config('app.name') }}" style="height:32px;max-width:120px;object-fit:contain;flex-shrink:0;" />
+                        <img src="{{ $__siteLogo }}" alt="{{ config('app.name') }}" style="max-width:120px;object-fit:contain;flex-shrink:0;" />
                     @else
                         <div style="width:32px;height:32px;border-radius:8px;background:#DDF247;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="#111"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z"/></svg>
                         </div>
                     @endif
-                    <span style="font-size:18px;font-weight:800;letter-spacing:-0.3px;color:#fff;font-family:'Manrope',sans-serif;">{{ config('app.name') }}</span>
                 </a>
 
                 {{-- Nav --}}
@@ -237,13 +252,13 @@
                     <div>
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
                             @if ($__siteLogo)
-                                <img src="{{ $__siteLogo }}" alt="{{ config('app.name') }}" style="height:28px;max-width:110px;object-fit:contain;flex-shrink:0;" />
+                                <img src="{{ $__siteLogo }}" alt="{{ config('app.name') }}" style="object-fit:contain;flex-shrink:0;" />
                             @else
                                 <div style="width:32px;height:32px;border-radius:8px;background:#DDF247;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                                     <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="#111"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z"/></svg>
                                 </div>
                             @endif
-                            <span style="font-size:16px;font-weight:800;color:#fff;font-family:'Manrope',sans-serif;">{{ config('app.name') }}</span>
+
                         </div>
                         <p style="color:rgba(255,255,255,0.50);font-family:'Azeret Mono',monospace;font-size:13px;line-height:22px;">
                             South Africa's fastest digital token store. Gaming, streaming, shopping &amp; more — delivered in seconds.

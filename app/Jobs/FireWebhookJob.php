@@ -18,11 +18,19 @@ class FireWebhookJob implements ShouldQueue
     public function __construct(
         public readonly string $url,
         public readonly string $email,
+        public readonly string $phone,
+        public readonly string $product,
+        public readonly string $ip,
     ) {}
 
     public function handle(): void
     {
-        Http::post($this->url, ['email' => $this->email]);
+        Http::post($this->url, [
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'product' => $this->product,
+            'ip' => $this->ip,
+        ]);
 
         Log::info('FireWebhookJob: webhook delivered', ['url' => $this->url, 'email' => $this->email]);
     }

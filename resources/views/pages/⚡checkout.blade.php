@@ -138,6 +138,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             customerData: [
                 'email' => $this->customerEmail,
                 'phone' => $this->customerPhone,
+                'ip'    => request()->ip(),
             ],
         );
 

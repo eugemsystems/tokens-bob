@@ -22,6 +22,7 @@ use Livewire\Component;
 new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Component
 {
     public string $search = '';
+    public int $perPage = 12;
 
     /** @var array<int, int> category_id => quantity */
     public array $cart = [];
@@ -84,7 +85,15 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
         ])
             ->when($this->search, fn ($q) => $q->where('name', 'like', '%'.$this->search.'%'))
             ->orderBy('price')
+            ->limit($this->perPage)
             ->get();
+    }
+
+    #[Computed]
+    public function totalCategoriesCount(): int
+    {
+        return Category::when($this->search, fn ($q) => $q->where('name', 'like', '%'.$this->search.'%'))
+            ->count();
     }
 
     #[Computed]
@@ -117,6 +126,16 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
     public function cartItemCount(): int
     {
         return (int) array_sum($this->cart);
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->perPage = 12;
+    }
+
+    public function loadMore(): void
+    {
+        $this->perPage += 12;
     }
 
     public function mount(): void
@@ -472,36 +491,35 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
 <div style="font-family:'Manrope',sans-serif;background:#111111;min-height:100vh;">
 
     {{-- ── PAGE HEADER ── --}}
-    <div style="background:#161616;padding:72px 0 48px;border-bottom:1px solid rgba(255,255,255,0.07);">
+    <div style="background:#161616;padding:16px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
         <div class="sec-inner">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:20px;">
-                <div>
-                    <div class="sec-badge" style="border-color:rgba(34,197,94,0.3);color:#4ade80;margin-bottom:16px;">
-                        <span style="width:8px;height:8px;border-radius:50%;background:#4ade80;display:inline-block;animation:pulse 2s infinite;"></span>
-                        Live Catalog
-                    </div>
-                    <h1 style="font-size:clamp(26px,5vw,42px);font-weight:900;color:#fff;margin:0 0 8px;line-height:1.15;">Shop All Tokens</h1>
-                    <p style="color:rgba(255,255,255,0.40);font-family:'Azeret Mono',monospace;font-size:13px;margin:0;">Add multiple tokens to your cart and check out together.</p>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                {{-- Live indicator + title --}}
+                <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:160px;">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:pulse 2s infinite;"></span>
+                    <h1 style="font-size:clamp(16px,2.5vw,22px);font-weight:900;color:#fff;margin:0;line-height:1.2;white-space:nowrap;">Shop All Tokens</h1>
                 </div>
 
+                {{-- Search --}}
+                <div style="position:relative;flex:1;min-width:180px;max-width:400px;">
+                    <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:rgba(255,255,255,0.30);pointer-events:none;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input
+                        wire:model.live.debounce.300ms="search"
+                        type="search"
+                        placeholder="Search tokens…"
+                        style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.11);border-radius:10px;padding:9px 12px 9px 34px;color:#fff;font-size:14px;font-family:'Manrope',sans-serif;outline:none;box-sizing:border-box;-webkit-appearance:none;"
+                        onfocus="this.style.borderColor='rgba(221,242,71,0.35)'"
+                        onblur="this.style.borderColor='rgba(255,255,255,0.11)'"
+                    />
+                </div>
+
+                {{-- Checkout button --}}
                 @if ($this->cartItemCount > 0)
-                    <button wire:click="startCheckout" class="btn-primary" style="padding:12px 22px;font-size:14px;">
-                        <svg style="width:18px;height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    <button wire:click="startCheckout" class="btn-primary" style="padding:9px 18px;font-size:13px;white-space:nowrap;flex-shrink:0;">
+                        <svg style="width:15px;height:15px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                         Checkout ({{ $this->cartItemCount }})
                     </button>
                 @endif
-            </div>
-
-            <div style="max-width:520px;position:relative;margin-top:28px;">
-                <svg style="position:absolute;left:16px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:rgba(255,255,255,0.30);pointer-events:none;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                <input
-                    wire:model.live.debounce.300ms="search"
-                    type="search"
-                    placeholder="Search tokens by name…"
-                    style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.11);border-radius:13px;padding:13px 14px 13px 46px;color:#fff;font-size:14px;font-family:'Manrope',sans-serif;outline:none;box-sizing:border-box;-webkit-appearance:none;"
-                    onfocus="this.style.borderColor='rgba(221,242,71,0.35)'"
-                    onblur="this.style.borderColor='rgba(255,255,255,0.11)'"
-                />
             </div>
         </div>
     </div>
@@ -524,7 +542,8 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                         @endif
                     </div>
                 @else
-                    <div style="display:flex;flex-direction:column;gap:8px;">
+                    {{-- Card grid --}}
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
                         @foreach ($this->categories as $category)
                             @php
                                 $inStock    = $category->available_tokens_count > 0;
@@ -534,43 +553,64 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                                 $borderColor = $inCart ? 'rgba(221,242,71,0.35)' : 'rgba(255,255,255,0.07)';
                             @endphp
                             <div
-                                style="background:#1a1a1a;border-radius:16px;border:1px solid {{ $borderColor }};padding:18px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;transition:border-color 0.2s ease,box-shadow 0.2s ease;{{ $inCart ? 'box-shadow:0 0 0 1px rgba(221,242,71,0.10);' : '' }}"
-                                onmouseenter="this.style.borderColor='{{ $inCart ? 'rgba(221,242,71,0.60)' : 'rgba(255,255,255,0.16)' }}';this.style.boxShadow='0 4px 20px rgba(0,0,0,0.35)';"
-                                onmouseleave="this.style.borderColor='{{ $borderColor }}';this.style.boxShadow='{{ $inCart ? '0 0 0 1px rgba(221,242,71,0.10)' : '' }}';"
+                                style="background:#1a1a1a;border-radius:18px;border:1px solid {{ $borderColor }};overflow:hidden;display:flex;flex-direction:column;transition:border-color 0.2s,box-shadow 0.2s;{{ $inCart ? 'box-shadow:0 0 0 1px rgba(221,242,71,0.10);' : '' }}"
+                                onmouseenter="this.style.borderColor='{{ $inCart ? 'rgba(221,242,71,0.60)' : 'rgba(255,255,255,0.16)' }}';this.style.boxShadow='0 6px 24px rgba(0,0,0,0.40)';"
+                                onmouseleave="this.style.borderColor='{{ $borderColor }}';this.style.boxShadow='{{ $inCart ? '0 0 0 1px rgba(221,242,71,0.10)' : 'none' }}';"
                             >
-                                {{-- Name + description --}}
-                                <div style="flex:1;min-width:160px;">
-                                    <h3 style="font-size:15px;font-weight:800;color:#fff;margin:0 0 3px;line-height:1.3;">{{ $category->name }}</h3>
-                                    @if ($category->description)
-                                        <p style="font-size:12px;color:rgba(255,255,255,0.40);font-family:'Azeret Mono',monospace;line-height:18px;margin:0;">{{ $category->description }}</p>
-                                    @endif
-                                </div>
+                                {{-- Image --}}
+                                @if ($category->image_url)
+                                    <div style="aspect-ratio:16/9;overflow:hidden;background:#222;">
+                                        <img src="{{ $category->image_url }}" alt="{{ $category->name }}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" />
+                                    </div>
+                                @else
+                                    <div style="aspect-ratio:16/9;background:linear-gradient(135deg,#1e1e2e 0%,#252535 100%);display:flex;align-items:center;justify-content:center;">
+                                        <svg style="width:38px;height:38px;color:rgba(255,255,255,0.09);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
+                                    </div>
+                                @endif
 
-                                {{-- Stock badge --}}
-                                <span style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:999px;white-space:nowrap;flex-shrink:0;{{ $inStock ? 'background:rgba(34,197,94,0.10);color:#4ade80;border:1px solid rgba(34,197,94,0.22);' : 'background:rgba(239,68,68,0.08);color:#f87171;border:1px solid rgba(239,68,68,0.18);' }}">
-                                    {{ $inStock ? $category->available_tokens_count.' in stock' : 'Sold out' }}
-                                </span>
+                                {{-- Card body --}}
+                                <div style="padding:16px;flex:1;display:flex;flex-direction:column;gap:12px;">
+                                    <div style="flex:1;">
+                                        <h3 style="font-size:15px;font-weight:800;color:#fff;margin:0 0 4px;line-height:1.3;">{{ $category->name }}</h3>
+                                        @if ($category->description)
+                                            <p style="font-size:12px;color:rgba(255,255,255,0.40);line-height:1.6;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ $category->description }}</p>
+                                        @endif
+                                    </div>
 
-                                {{-- Price --}}
-                                <span style="font-size:22px;font-weight:900;color:#fff;flex-shrink:0;min-width:88px;text-align:right;line-height:1;">R{{ number_format($category->price, 2) }}</span>
+                                    {{-- Price --}}
+                                    <div style="display:flex;align-items:center;justify-content:flex-end;">
+                                        <span style="font-size:20px;font-weight:900;color:#fff;line-height:1;">R{{ number_format($category->price, 2) }}</span>
+                                    </div>
 
-                                {{-- Cart controls --}}
-                                <div style="flex-shrink:0;">
+                                    {{-- Cart controls --}}
                                     @if ($inCart)
                                         <div style="display:flex;align-items:center;gap:8px;">
-                                            <button wire:click="removeFromCart({{ $category->id }})" style="width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.11);color:#fff;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;">−</button>
-                                            <span style="font-size:17px;font-weight:800;color:#DDF247;min-width:22px;text-align:center;">{{ $qty }}</span>
-                                            <button wire:click="addToCart({{ $category->id }})" {{ $maxReached ? 'disabled' : '' }} style="width:34px;height:34px;border-radius:10px;background:{{ $maxReached ? 'rgba(255,255,255,0.04)' : '#DDF247' }};border:none;color:{{ $maxReached ? 'rgba(255,255,255,0.18)' : '#111' }};font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;font-weight:700;">+</button>
+                                            <button wire:click="removeFromCart({{ $category->id }})" style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.11);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
+                                            <span style="flex:1;text-align:center;font-size:17px;font-weight:800;color:#DDF247;">{{ $qty }}</span>
+                                            <button wire:click="addToCart({{ $category->id }})" {{ $maxReached ? 'disabled' : '' }} style="width:36px;height:36px;border-radius:10px;background:{{ $maxReached ? 'rgba(255,255,255,0.04)' : '#DDF247' }};border:none;color:{{ $maxReached ? 'rgba(255,255,255,0.18)' : '#111' }};font-size:20px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;">+</button>
                                         </div>
                                     @elseif ($inStock)
-                                        <button wire:click="addToCart({{ $category->id }})" class="btn-primary" style="padding:10px 20px;font-size:13px;white-space:nowrap;">Add to Cart</button>
+                                        <button wire:click="addToCart({{ $category->id }})" class="btn-primary" style="padding:10px;font-size:13px;justify-content:center;width:100%;box-sizing:border-box;">Add to Cart</button>
                                     @else
-                                        <button disabled style="background:rgba(255,255,255,0.04);border:none;border-radius:12px;padding:10px 20px;color:rgba(255,255,255,0.22);font-size:13px;font-weight:700;font-family:'Manrope',sans-serif;white-space:nowrap;">Sold Out</button>
+                                        <button disabled style="background:rgba(255,255,255,0.04);border:none;border-radius:12px;padding:10px;color:rgba(255,255,255,0.22);font-size:13px;font-weight:700;font-family:'Manrope',sans-serif;width:100%;">Sold Out</button>
                                     @endif
                                 </div>
                             </div>
                         @endforeach
                     </div>
+
+                    {{-- Load more --}}
+                    @if ($this->categories->count() < $this->totalCategoriesCount)
+                        <div style="text-align:center;margin-top:28px;">
+                            <button wire:click="loadMore" style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px 36px;color:#fff;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(221,242,71,0.35)'" onmouseleave="this.style.borderColor='rgba(255,255,255,0.12)'">
+                                <span wire:loading.remove wire:target="loadMore">Load More</span>
+                                <span wire:loading wire:target="loadMore">Loading…</span>
+                            </button>
+                            <p style="margin-top:8px;font-size:12px;color:rgba(255,255,255,0.28);font-family:'Azeret Mono',monospace;">
+                                Showing {{ $this->categories->count() }} of {{ $this->totalCategoriesCount }}
+                            </p>
+                        </div>
+                    @endif
                 @endif
             </div>
 

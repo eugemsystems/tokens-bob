@@ -906,7 +906,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     {{-- Iframe: cropped on PesePay's first page, full on 3DS redirect --}}
                                     <div
                                         :style="mobile
-                                            ? 'flex:1;position:relative;-webkit-mask-image:linear-gradient(to bottom,transparent 0px,transparent 195px,black 210px,black calc(100% - 80px),transparent calc(100% - 44px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0px,transparent 195px,black 210px,black calc(100% - 80px),transparent calc(100% - 44px),transparent 100%);'
+                                            ? 'flex:1;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(to bottom,black 0,black calc(100% - 36px),transparent 100%);mask-image:linear-gradient(to bottom,black 0,black calc(100% - 36px),transparent 100%);'
                                             : 'flex:1;overflow:hidden;position:relative;'"
                                     >
                                         <iframe
@@ -916,7 +916,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                             @load="loads++"
                                             :style="loads <= 1
                                                 ? (mobile
-                                                    ? 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'
+                                                    ? 'position:absolute;top:-195px;left:0;width:100%;height:calc(100% + 195px);border:none;'
                                                     : 'position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 350px);border:none;')
                                                 : 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'"
                                         ></iframe>

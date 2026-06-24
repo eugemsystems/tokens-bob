@@ -859,13 +859,13 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                             </div>
                         @endif
 
-                        {{-- PesePay card: hosted popup for 3DS (iVeri → Cardinal Cruise) --}}
+                        {{-- PesePay card: browser popup (iVeri → Cardinal Cruise 3DS handled by PesePay's hosted page) --}}
                         @if ($checkoutType === 'seamless' && $pesepayCardPopupUrl)
                             <div
                                 wire:poll.5000ms="pollPesepayPayment"
                                 x-data="{ popup: null }"
                                 x-init="$nextTick(function () {
-                                    popup = window.open('{{ addslashes($pesepayCardPopupUrl) }}', 'pesepay_card', 'width=720,height=680,scrollbars=yes,resizable=yes');
+                                    popup = window.open('{{ addslashes($pesepayCardPopupUrl) }}', 'pesepay_card', 'width=760,height=720,scrollbars=yes,resizable=yes');
                                 });"
                                 style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:32px;display:flex;flex-direction:column;align-items:center;gap:16px;"
                             >
@@ -873,7 +873,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                 <p style="font-size:15px;font-weight:800;color:#fff;margin:0;">Complete payment in the popup</p>
                                 <p style="font-size:12px;color:rgba(255,255,255,0.45);font-family:'Azeret Mono',monospace;margin:0;text-align:center;">Enter your card details and complete 3D Secure verification in the secure window that just opened.</p>
                                 <button
-                                    x-on:click="popup = window.open('{{ addslashes($pesepayCardPopupUrl) }}', 'pesepay_card', 'width=720,height=680,scrollbars=yes,resizable=yes')"
+                                    x-on:click="popup = window.open('{{ addslashes($pesepayCardPopupUrl) }}', 'pesepay_card', 'width=760,height=720,scrollbars=yes,resizable=yes')"
                                     style="font-size:13px;color:rgba(255,255,255,0.40);background:none;border:none;font-family:'Manrope',sans-serif;font-weight:600;cursor:pointer;"
                                     onmouseenter="this.style.color='rgba(255,255,255,0.65)'" onmouseleave="this.style.color='rgba(255,255,255,0.40)'"
                                 >Reopen payment window ↗</button>

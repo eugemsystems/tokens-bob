@@ -276,7 +276,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Encryption failed. Please try again.'];
         }
 
-        $response = $this->sendRequest('POST', $this->baseUrl().'/payments/initiate', ['payload' => $encrypted]);
+        $response = $this->sendRequest('POST', $this->initiateTransactionUrl(), ['payload' => $encrypted]);
 
         if ($response === null) {
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Could not reach payment gateway. Please try again later.'];
@@ -285,10 +285,14 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
         Log::info('PesePay: initiate transaction response', [
             'transaction_id' => $transaction->id,
             'http_status' => $response['status'],
+            'body' => $response['succeeded'] ? null : $response['body'],
         ]);
 
         if (! $response['succeeded']) {
-            return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Failed to initiate card payment. Please try again.'];
+            $apiMessage = $response['json']['message'] ?? null;
+            $message = ($apiMessage && ! str_contains($apiMessage, 'No message')) ? $apiMessage : 'Failed to initiate card payment. Please try again.';
+
+            return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => $message];
         }
 
         $data = $this->decryptPayload($response['json']['payload'] ?? '');
@@ -296,6 +300,13 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
         if ($data === null) {
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Invalid response from payment gateway.'];
         }
+
+        Log::info('PesePay: initiate transaction decrypted', [
+            'transaction_id' => $transaction->id,
+            'reference_number' => $data['referenceNumber'] ?? null,
+            'redirect_url' => $data['redirectUrl'] ?? null,
+            'transaction_status' => $data['transactionStatus'] ?? null,
+        ]);
 
         return [
             'success' => true,
@@ -458,5 +469,12 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
         return $this->isSandbox()
             ? 'https://api.test.sandbox.pesepay.com/payments-engine/v2/payments/make-payment'
             : 'https://api.pesepay.com/api/payments-engine/v2/payments/make-payment';
+    }
+
+    private function initiateTransactionUrl(): string
+    {
+        return $this->isSandbox()
+            ? 'https://api.test.sandbox.pesepay.com/payments-engine/v1/payments/initiate'
+            : 'https://api.pesepay.com/api/payments-engine/v1/payments/initiate';
     }
 }

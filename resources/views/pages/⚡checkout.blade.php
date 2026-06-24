@@ -811,27 +811,59 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                         {{-- PesePay card: in-app iframe modal (iVeri → Cardinal Cruise 3DS handled by PesePay's hosted page) --}}
                         @if ($checkoutType === 'seamless' && $pesepayCardPopupUrl)
                             <div wire:poll.5000ms="pollPesepayPayment" style="display:none;position:absolute;pointer-events:none;"></div>
-                            <div style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">
-                                <div style="position:absolute;inset:0;background:rgba(0,0,0,0.80);backdrop-filter:blur(4px);"></div>
-                                <div style="position:relative;z-index:1;background:#1a1a1a;border-radius:20px;border:1px solid rgba(255,255,255,0.10);width:100%;max-width:860px;height:90vh;display:flex;flex-direction:column;overflow:hidden;">
-                                    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;">
-                                        <div style="display:flex;align-items:center;gap:10px;">
-                                            <svg style="width:15px;height:15px;color:#4ade80;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+
+                            <div
+                                x-data="{
+                                    loads: 0,
+                                    mobile: window.innerWidth < 640,
+                                    init() { window.addEventListener('resize', () => { this.mobile = window.innerWidth < 640 }) }
+                                }"
+                                style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;"
+                                :style="mobile ? '' : 'padding:16px;'"
+                            >
+                                {{-- Backdrop --}}
+                                <div style="position:absolute;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(4px);"></div>
+
+                                {{-- Modal card --}}
+                                <div
+                                    style="position:relative;z-index:1;background:#1a1a1a;border:1px solid rgba(255,255,255,0.10);width:100%;max-width:860px;display:flex;flex-direction:column;overflow:hidden;"
+                                    :style="mobile ? 'height:100dvh;border-radius:0;' : 'height:90vh;border-radius:20px;'"
+                                >
+                                    {{-- Header --}}
+                                    <div
+                                        style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;"
+                                        :style="mobile ? 'padding:12px 16px;' : 'padding:14px 20px;'"
+                                    >
+                                        <div style="display:flex;align-items:center;gap:8px;">
+                                            <svg style="width:14px;height:14px;color:#4ade80;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                                             <span style="font-size:14px;font-weight:700;color:#fff;">Secure Card Payment</span>
                                         </div>
                                         <button wire:click="cancelPayment" style="font-size:12px;color:rgba(255,255,255,0.35);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);border-radius:8px;padding:6px 14px;font-family:'Manrope',sans-serif;font-weight:600;cursor:pointer;">Cancel</button>
                                     </div>
-                                    {{-- Crop PesePay's own header/footer by extending the iframe beyond the visible area --}}
-                                    <div style="flex:1;overflow:hidden;position:relative;">
+
+                                    {{-- Iframe: cropped on PesePay's first page, full on 3DS redirect --}}
+                                    <div
+                                        style="position:relative;"
+                                        :style="loads <= 1 ? 'flex:1;overflow:hidden;' : 'flex:1;'"
+                                    >
                                         <iframe
                                             src="{{ $pesepayCardPopupUrl }}"
                                             allow="payment"
                                             title="Secure Card Payment"
-                                            style="position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 120px);border:none;"
+                                            @load="loads++"
+                                            style="border:none;"
+                                            :style="loads <= 1
+                                                ? (mobile
+                                                    ? 'position:absolute;top:-60px;left:0;width:100%;height:calc(100% + 110px);'
+                                                    : 'position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 120px);')
+                                                : 'position:absolute;top:0;left:0;width:100%;height:100%;'"
                                         ></iframe>
                                     </div>
-                                    <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:8px;flex-shrink:0;background:#161616;">
-                                        <svg style="width:12px;height:12px;color:rgba(255,255,255,0.20);flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+
+                                    {{-- Footer --}}
+                                    <div style="padding:8px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:8px;flex-shrink:0;background:#161616;">
+                                        <svg style="width:11px;height:11px;color:rgba(255,255,255,0.20);flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+                                        <span style="font-size:10px;color:rgba(255,255,255,0.20);font-family:'Azeret Mono',monospace;">Secured by PesePay · Ref: {{ $pesepayReferenceNumber }}</span>
                                     </div>
                                 </div>
                             </div>

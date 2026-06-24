@@ -6,8 +6,6 @@ use App\Contracts\PaymentGateway;
 use App\Contracts\SeamlessGateway;
 use App\Models\Setting;
 use App\Models\Transaction;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -349,44 +347,22 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
     }
 
     /**
-     * Send a request to PesePay, falling back to native curl if Guzzle fails
-     * to parse the response (PesePay's nginx sends a folded Strict-Transport-Security
-     * header that some Guzzle/libcurl versions reject as invalid).
+     * Send a request to PesePay using native curl.
+     * Guzzle is avoided here because PesePay's nginx sends a folded
+     * Strict-Transport-Security header that Guzzle/libcurl rejects as invalid,
+     * causing it to throw AFTER the request was already processed by PesePay.
+     * A Guzzle retry would then send the same payload twice, triggering
+     * "Duplicate merchant reference" errors. Curl handles folded headers fine.
      *
      * @param  array<string, mixed>  $payload
      * @return array{status: int, body: string, json: array<string, mixed>|null, succeeded: bool}|null
      */
-    private function sendRequest(string $method, string $url, array $payload = []): ?array
+    protected function sendRequest(string $method, string $url, array $payload = []): ?array
     {
-        try {
-            $client = Http::withHeaders([
-                'authorization' => config('pesepay.integration_key'),
-                'Content-Type' => 'application/json',
-            ]);
-
-            $response = $method === 'GET'
-                ? $client->get($url, $payload)
-                : $client->post($url, $payload);
-
-            return [
-                'status' => $response->status(),
-                'body' => $response->body(),
-                'json' => $response->json(),
-                'succeeded' => $response->successful(),
-            ];
-        } catch (ConnectionException $e) {
-            Log::warning('PesePay: Guzzle failed, retrying with native curl', [
-                'url' => $url,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->curlRequest($method, $url, $payload);
-        }
+        return $this->curlRequest($method, $url, $payload);
     }
 
     /**
-     * Native-curl fallback used when Guzzle rejects PesePay's response headers.
-     *
      * @param  array<string, mixed>  $payload
      * @return array{status: int, body: string, json: array<string, mixed>|null, succeeded: bool}|null
      */

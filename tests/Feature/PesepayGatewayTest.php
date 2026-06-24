@@ -5,7 +5,7 @@ use App\Enums\TransactionStatus;
 use App\Models\Token;
 use App\Models\Transaction;
 use App\Services\Gateways\PesepayGateway;
-use Illuminate\Support\Facades\Http;
+use Mockery\MockInterface;
 
 beforeEach(function () {
     config([
@@ -22,6 +22,42 @@ function pesepayEncrypt(array $data): string
     $iv = substr($key, 0, 16);
 
     return openssl_encrypt(json_encode($data), 'AES-256-CBC', $key, 0, $iv);
+}
+
+/**
+ * Build a fake curlRequest response as PesePay would return.
+ *
+ * @param  array<string, mixed>  $decryptedPayload
+ */
+function fakeCurlOk(array $decryptedPayload): array
+{
+    $encrypted = pesepayEncrypt($decryptedPayload);
+    $body = json_encode(['payload' => $encrypted]);
+
+    return [
+        'status' => 200,
+        'body' => $body,
+        'json' => ['payload' => $encrypted],
+        'succeeded' => true,
+    ];
+}
+
+function fakeCurlFail(int $status = 500): array
+{
+    return [
+        'status' => $status,
+        'body' => '{"message":"Internal Server Error"}',
+        'json' => ['message' => 'Internal Server Error'],
+        'succeeded' => false,
+    ];
+}
+
+/** @return MockInterface&PesepayGateway */
+function pesepayGateway(): PesepayGateway
+{
+    return Mockery::mock(PesepayGateway::class)
+        ->shouldAllowMockingProtectedMethods()
+        ->makePartial();
 }
 
 it('initiate returns seamless checkout type with payment methods including card', function () {
@@ -46,28 +82,26 @@ it('makeCardPayment sends encrypted card payload and returns reference number on
         'customer_email' => 'test@example.com',
     ]);
 
-    $fakeResponse = pesepayEncrypt([
-        'referenceNumber' => 'REF-2026-CARD-001',
-        'transactionStatus' => 'PENDING',
-    ]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')
+        ->once()
+        ->andReturn(fakeCurlOk([
+            'referenceNumber' => 'REF-2026-CARD-001',
+            'transactionStatus' => 'PENDING',
+        ]));
 
-    Http::fake(['*make-payment*' => Http::response(['payload' => $fakeResponse], 200)]);
-
-    $gateway = app(PesepayGateway::class);
     $result = $gateway->makeCardPayment($transaction, 'PZW204', '4867960000005461', '08/27', '123');
 
     expect($result['success'])->toBeTrue()
         ->and($result['reference_number'])->toBe('REF-2026-CARD-001');
-
-    Http::assertSentCount(1);
 });
 
 it('makeCardPayment returns error when API call fails', function () {
     $transaction = Transaction::factory()->create(['amount' => 10.00]);
 
-    Http::fake(['*make-payment*' => Http::response([], 500)]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')->once()->andReturn(fakeCurlFail());
 
-    $gateway = app(PesepayGateway::class);
     $result = $gateway->makeCardPayment($transaction, 'PZW204', '4867960000005461', '08/27', '123');
 
     expect($result['success'])->toBeFalse()
@@ -77,29 +111,27 @@ it('makeCardPayment returns error when API call fails', function () {
 it('initiateTransaction returns redirect url for card payment', function () {
     $transaction = Transaction::factory()->create(['amount' => 10.00]);
 
-    $fakeResponse = pesepayEncrypt([
-        'referenceNumber' => 'REF-2026-CARD-001',
-        'redirectUrl' => 'https://api.test.sandbox.pesepay.com/payments/redirect/REF-2026-CARD-001',
-    ]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')
+        ->once()
+        ->andReturn(fakeCurlOk([
+            'referenceNumber' => 'REF-2026-CARD-001',
+            'redirectUrl' => 'https://api.test.sandbox.pesepay.com/payments/redirect/REF-2026-CARD-001',
+        ]));
 
-    Http::fake(['*initiate*' => Http::response(['payload' => $fakeResponse], 200)]);
-
-    $gateway = app(PesepayGateway::class);
     $result = $gateway->initiateTransaction($transaction);
 
     expect($result['success'])->toBeTrue()
         ->and($result['reference_number'])->toBe('REF-2026-CARD-001')
         ->and($result['redirect_url'])->toContain('REF-2026-CARD-001');
-
-    Http::assertSentCount(1);
 });
 
 it('initiateTransaction returns error when API call fails', function () {
     $transaction = Transaction::factory()->create(['amount' => 10.00]);
 
-    Http::fake(['*initiate*' => Http::response([], 500)]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')->once()->andReturn(fakeCurlFail());
 
-    $gateway = app(PesepayGateway::class);
     $result = $gateway->initiateTransaction($transaction);
 
     expect($result['success'])->toBeFalse()
@@ -113,29 +145,27 @@ it('makePayment sends encrypted payload and returns reference number on success'
         'customer_phone' => '0777777777',
     ]);
 
-    $fakeResponse = pesepayEncrypt([
-        'referenceNumber' => 'REF-2026-TEST-001',
-        'pollUrl' => 'https://api.test.sandbox.pesepay.com/payments-engine/v1/payments/check-payment',
-        'transactionStatus' => 'PENDING',
-    ]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')
+        ->once()
+        ->andReturn(fakeCurlOk([
+            'referenceNumber' => 'REF-2026-TEST-001',
+            'pollUrl' => 'https://api.test.sandbox.pesepay.com/payments-engine/v1/payments/check-payment',
+            'transactionStatus' => 'PENDING',
+        ]));
 
-    Http::fake(['*make-payment*' => Http::response(['payload' => $fakeResponse], 200)]);
-
-    $gateway = app(PesepayGateway::class);
     $result = $gateway->makePayment($transaction, 'PZW211', '0777777777');
 
     expect($result['success'])->toBeTrue()
         ->and($result['reference_number'])->toBe('REF-2026-TEST-001');
-
-    Http::assertSentCount(1);
 });
 
 it('makePayment returns error when API call fails', function () {
     $transaction = Transaction::factory()->create(['amount' => 10.00]);
 
-    Http::fake(['*make-payment*' => Http::response([], 500)]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')->once()->andReturn(fakeCurlFail());
 
-    $gateway = app(PesepayGateway::class);
     $result = $gateway->makePayment($transaction, 'PZW211', '0777777777');
 
     expect($result['success'])->toBeFalse()
@@ -143,14 +173,14 @@ it('makePayment returns error when API call fails', function () {
 });
 
 it('checkStatus decrypts and returns the transaction status', function () {
-    $fakeResponse = pesepayEncrypt([
-        'referenceNumber' => 'REF-2026-TEST-001',
-        'transactionStatus' => 'SUCCESS',
-    ]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')
+        ->once()
+        ->andReturn(fakeCurlOk([
+            'referenceNumber' => 'REF-2026-TEST-001',
+            'transactionStatus' => 'SUCCESS',
+        ]));
 
-    Http::fake(['*check-payment*' => Http::response(['payload' => $fakeResponse], 200)]);
-
-    $gateway = app(PesepayGateway::class);
     $status = $gateway->checkStatus('REF-2026-TEST-001');
 
     expect($status)->not->toBeNull()
@@ -159,9 +189,9 @@ it('checkStatus decrypts and returns the transaction status', function () {
 });
 
 it('checkStatus returns null when API call fails', function () {
-    Http::fake(['*check-payment*' => Http::response([], 503)]);
+    $gateway = pesepayGateway();
+    $gateway->shouldReceive('sendRequest')->once()->andReturn(null);
 
-    $gateway = app(PesepayGateway::class);
     $status = $gateway->checkStatus('REF-2026-TEST-001');
 
     expect($status)->toBeNull();

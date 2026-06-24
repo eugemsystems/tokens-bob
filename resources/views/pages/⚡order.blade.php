@@ -14,6 +14,8 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
 
     public bool $isWebhookPurchase = false;
 
+    public bool $isPartnerPurchase = false;
+
     public bool $polling = false;
 
     public bool $failed = false;
@@ -39,6 +41,7 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
         $this->amount = (float) $transaction->amount;
         $this->customerEmail = $transaction->customer_email;
         $this->isWebhookPurchase = (bool) $transaction->is_webhook_purchase;
+        $this->isPartnerPurchase = ! empty($transaction->partner_data['reference']);
 
         if ($transaction->status === TransactionStatus::Failed) {
             $this->failed = true;
@@ -90,6 +93,7 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
         if ($transaction->status === TransactionStatus::Completed) {
             $this->polling = false;
             $this->isWebhookPurchase = (bool) $transaction->is_webhook_purchase;
+            $this->isPartnerPurchase = ! empty($transaction->partner_data['reference']);
 
             if ($this->isWebhookPurchase) {
                 $this->found = true;
@@ -171,11 +175,19 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
                 </div>
             </div>
 
-            <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 10px;line-height:1.15;">Payment Received!</h1>
-            <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;line-height:22px;">
-                Your payment has been confirmed.<br>
-                You will be contacted at <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>.
-            </p>
+            @if ($isPartnerPurchase)
+                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 10px;line-height:1.15;">Your BobTV Account Has Been Activated!</h1>
+                <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;line-height:22px;">
+                    Your BobTV subscription has been successfully activated.<br>
+                    A confirmation has been sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>.
+                </p>
+            @else
+                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 10px;line-height:1.15;">Payment Received!</h1>
+                <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;line-height:22px;">
+                    Your payment has been confirmed.<br>
+                    You will be contacted at <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>.
+                </p>
+            @endif
 
             <div style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;">
                 <div>
@@ -208,13 +220,22 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
             </div>
 
             {{-- Heading --}}
-            <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 8px;line-height:1.15;">
-                {{ count($tokens) === 1 ? 'Token Purchased!' : count($tokens).' Tokens Purchased!' }}
-            </h1>
-            <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;">
-                Sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>
-                &nbsp;·&nbsp; Ref <strong style="color:rgba(255,255,255,0.65);">#{{ $transactionId }}</strong>
-            </p>
+            @if ($isPartnerPurchase)
+                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 8px;line-height:1.15;">Your BobTV Account Has Been Activated!</h1>
+                <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;">
+                    Your BobTV subscription is now active.<br>
+                    Confirmation sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>
+                    &nbsp;·&nbsp; Ref <strong style="color:rgba(255,255,255,0.65);">#{{ $transactionId }}</strong>
+                </p>
+            @else
+                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 8px;line-height:1.15;">
+                    {{ count($tokens) === 1 ? 'Token Purchased!' : count($tokens).' Tokens Purchased!' }}
+                </h1>
+                <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;">
+                    Sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>
+                    &nbsp;·&nbsp; Ref <strong style="color:rgba(255,255,255,0.65);">#{{ $transactionId }}</strong>
+                </p>
+            @endif
 
             {{-- Token cards --}}
             <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:36px;">

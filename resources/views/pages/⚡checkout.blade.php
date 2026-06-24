@@ -917,7 +917,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                                 : 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'"
                                         ></iframe>
                                         {{-- Gradient mask: hides PesePay's footer regardless of scroll position --}}
-                                        <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to bottom,transparent,#1a1a1a);z-index:1;pointer-events:none;"></div>
+                                        <div style="position:absolute;bottom:0;left:0;right:0;height:160px;background:linear-gradient(to bottom,transparent,#1a1a1a 55%);z-index:1;pointer-events:none;"></div>
                                     </div>
 
                                     {{-- Footer --}}

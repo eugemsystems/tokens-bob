@@ -275,12 +275,6 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
     public function submitPesepayPayment(): void
     {
-        if (in_array($this->pesepayPaymentMethod, ['PZW211', 'PZW212'], true) && empty(trim($this->pesepayPhone))) {
-            $this->addError('pesepayPhone', 'Phone number is required.');
-
-            return;
-        }
-
         $this->paymentError = '';
 
         $transaction = Transaction::find($this->pendingTransactionId);
@@ -298,27 +292,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             return;
         }
 
-        if (in_array($this->pesepayPaymentMethod, ['PZW204', 'PZW205'], true)) {
-            // Open PesePay's hosted checkout in a popup — it handles card entry + iVeri + 3DS (Cardinal)
-            $result = $gateway->initiateTransaction($transaction);
-
-            if (! $result['success']) {
-                $this->paymentError = $result['message'];
-
-                return;
-            }
-
-            $transaction->update(['gateway_payment_id' => $result['reference_number'] ?: null]);
-
-            $this->pesepayReferenceNumber = $result['reference_number'];
-            $this->pesepayCardPopupUrl    = $result['redirect_url'];
-            $this->pollingForPayment      = true;
-            $this->pollAttempts           = 0;
-
-            return;
-        }
-
-        $result = $gateway->makePayment($transaction, $this->pesepayPaymentMethod, $this->pesepayPhone);
+        $result = $gateway->initiateTransaction($transaction);
 
         if (! $result['success']) {
             $this->paymentError = $result['message'];
@@ -326,9 +300,10 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             return;
         }
 
-        $transaction->update(['gateway_payment_id' => $result['reference_number']]);
+        $transaction->update(['gateway_payment_id' => $result['reference_number'] ?: null]);
 
         $this->pesepayReferenceNumber = $result['reference_number'];
+        $this->pesepayCardPopupUrl    = $result['redirect_url'];
         $this->pollingForPayment      = true;
         $this->pollAttempts           = 0;
     }
@@ -807,56 +782,30 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                             </div>
                         @endif
 
-                        {{-- PesePay seamless: method selector --}}
-                        @if ($checkoutType === 'seamless' && ! $pesepayReferenceNumber)
-                            <div style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:28px;display:flex;flex-direction:column;gap:20px;">
-                                <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.35);margin:0;font-family:'Azeret Mono',monospace;">Select payment method</p>
-
-                                <div style="display:flex;flex-direction:column;gap:10px;">
-                                    @foreach ($pesepayPaymentMethods as $method)
-                                        <button
-                                            wire:click="$set('pesepayPaymentMethod', '{{ $method['code'] }}')"
-                                            style="width:100%;text-align:left;padding:14px 18px;border-radius:12px;border:2px solid {{ $pesepayPaymentMethod === $method['code'] ? '#DDF247' : 'rgba(255,255,255,0.10)' }};background:{{ $pesepayPaymentMethod === $method['code'] ? 'rgba(221,242,71,0.06)' : 'rgba(255,255,255,0.02)' }};color:{{ $pesepayPaymentMethod === $method['code'] ? '#DDF247' : 'rgba(255,255,255,0.70)' }};font-family:'Manrope',sans-serif;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:border-color .15s;"
-                                        >
-                                            {{ $method['name'] }}
-                                            @if ($pesepayPaymentMethod === $method['code'])
-                                                <svg style="width:16px;height:16px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-                                            @endif
-                                        </button>
-                                    @endforeach
-                                </div>
-
-                                @if (in_array($pesepayPaymentMethod, ['PZW211', 'PZW212']))
-                                    <div>
-                                        <flux:input wire:model="pesepayPhone" label="Phone Number" type="tel" placeholder="0777 000 000" />
-                                        @error('pesepayPhone') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
-                                    </div>
-                                @endif
-
-                                @if (in_array($pesepayPaymentMethod, ['PZW204', 'PZW205']))
-                                    <div style="display:flex;align-items:flex-start;gap:10px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.18);border-radius:10px;padding:12px 14px;">
-                                        <svg style="width:15px;height:15px;color:#60a5fa;flex-shrink:0;margin-top:1px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                        <p style="font-size:12px;color:#93c5fd;margin:0;line-height:18px;font-family:'Azeret Mono',monospace;">A secure popup will open to collect your card details and complete 3D Secure verification.</p>
-                                    </div>
-                                @endif
-
-                                @if ($pesepayPaymentMethod)
+                        {{-- PesePay seamless: auto-open hosted checkout --}}
+                        @if ($checkoutType === 'seamless' && ! $pesepayCardPopupUrl)
+                            @if ($paymentError)
+                                <div style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px;">
+                                    <p style="font-size:14px;color:#f87171;margin:0;text-align:center;">{{ $paymentError }}</p>
                                     <button
                                         wire:click="submitPesepayPayment"
-                                        style="width:100%;background:#DDF247;color:#111;font-weight:900;font-size:15px;padding:15px;border-radius:13px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;"
-                                        onmouseenter="this.style.opacity='0.88'" onmouseleave="this.style.opacity='1'"
+                                        style="background:#DDF247;color:#111;font-weight:900;font-size:14px;padding:12px 28px;border-radius:12px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px;"
                                     >
-                                        <span wire:loading.remove wire:target="submitPesepayPayment" style="display:flex;align-items:center;gap:8px;">
-                                            <svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                            Pay R{{ number_format($this->cartTotal, 2) }} <span style="opacity:0.6;font-size:13px;font-weight:600;">(USD {{ number_format($this->cartTotalUsd, 2) }})</span>
-                                        </span>
-                                        <span wire:loading.flex wire:target="submitPesepayPayment" style="align-items:center;gap:8px;">
-                                            <svg style="width:17px;height:17px;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
-                                            Sending request…
-                                        </span>
+                                        <span wire:loading.remove wire:target="submitPesepayPayment">Try Again</span>
+                                        <span wire:loading wire:target="submitPesepayPayment">Opening…</span>
                                     </button>
-                                @endif
-                            </div>
+                                </div>
+                            @else
+                                <div
+                                    x-data
+                                    x-init="$wire.submitPesepayPayment()"
+                                    style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:40px;display:flex;flex-direction:column;align-items:center;gap:16px;"
+                                >
+                                    <svg style="width:36px;height:36px;color:#DDF247;animation:spin 1.2s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+                                    <p style="font-size:15px;font-weight:800;color:#fff;margin:0;">Opening secure payment…</p>
+                                    <p style="font-size:12px;color:rgba(255,255,255,0.35);font-family:'Azeret Mono',monospace;margin:0;">Please wait while we connect to PesePay.</p>
+                                </div>
+                            @endif
                         @endif
 
                         {{-- PesePay card: in-app iframe modal (iVeri → Cardinal Cruise 3DS handled by PesePay's hosted page) --}}
@@ -878,12 +827,11 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                             src="{{ $pesepayCardPopupUrl }}"
                                             allow="payment"
                                             title="Secure Card Payment"
-                                            style="position:absolute;top:-70px;left:0;width:100%;height:calc(100% + 120px);border:none;"
+                                            style="position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 120px);border:none;"
                                         ></iframe>
                                     </div>
                                     <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:8px;flex-shrink:0;background:#161616;">
                                         <svg style="width:12px;height:12px;color:rgba(255,255,255,0.20);flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
-                                        <span style="font-size:10px;color:rgba(255,255,255,0.20);font-family:'Azeret Mono',monospace;">Secured by PesePay · Ref: {{ $pesepayReferenceNumber }}</span>
                                     </div>
                                 </div>
                             </div>

@@ -872,7 +872,15 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                         </div>
                                         <button wire:click="cancelPayment" style="font-size:12px;color:rgba(255,255,255,0.35);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);border-radius:8px;padding:6px 14px;font-family:'Manrope',sans-serif;font-weight:600;cursor:pointer;">Cancel</button>
                                     </div>
-                                    <iframe src="{{ $pesepayCardPopupUrl }}" allow="payment" title="Secure Card Payment" style="width:100%;flex:1;border:none;display:block;"></iframe>
+                                    {{-- Crop PesePay's own header/footer by extending the iframe beyond the visible area --}}
+                                    <div style="flex:1;overflow:hidden;position:relative;">
+                                        <iframe
+                                            src="{{ $pesepayCardPopupUrl }}"
+                                            allow="payment"
+                                            title="Secure Card Payment"
+                                            style="position:absolute;top:-70px;left:0;width:100%;height:calc(100% + 120px);border:none;"
+                                        ></iframe>
+                                    </div>
                                     <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:8px;flex-shrink:0;background:#161616;">
                                         <svg style="width:12px;height:12px;color:rgba(255,255,255,0.20);flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
                                         <span style="font-size:10px;color:rgba(255,255,255,0.20);font-family:'Azeret Mono',monospace;">Secured by PesePay · Ref: {{ $pesepayReferenceNumber }}</span>

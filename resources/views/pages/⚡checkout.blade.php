@@ -818,21 +818,24 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     mobile: window.innerWidth < 640,
                                     init() { window.addEventListener('resize', () => { this.mobile = window.innerWidth < 640 }) }
                                 }"
-                                style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;"
-                                :style="mobile ? '' : 'padding:16px;'"
+                                :style="mobile
+                                    ? 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;'
+                                    : 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;'"
                             >
                                 {{-- Backdrop --}}
                                 <div style="position:absolute;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(4px);"></div>
 
                                 {{-- Modal card --}}
                                 <div
-                                    style="position:relative;z-index:1;background:#1a1a1a;border:1px solid rgba(255,255,255,0.10);width:100%;max-width:860px;display:flex;flex-direction:column;overflow:hidden;"
-                                    :style="mobile ? 'height:100dvh;border-radius:0;' : 'height:90vh;border-radius:20px;'"
+                                    :style="mobile
+                                        ? 'position:relative;z-index:1;background:#1a1a1a;border:1px solid rgba(255,255,255,0.10);width:100%;max-width:860px;display:flex;flex-direction:column;overflow:hidden;height:100dvh;border-radius:0;'
+                                        : 'position:relative;z-index:1;background:#1a1a1a;border:1px solid rgba(255,255,255,0.10);width:100%;max-width:860px;display:flex;flex-direction:column;overflow:hidden;height:90vh;border-radius:20px;'"
                                 >
                                     {{-- Header --}}
                                     <div
-                                        style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;"
-                                        :style="mobile ? 'padding:12px 16px;' : 'padding:14px 20px;'"
+                                        :style="mobile
+                                            ? 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;padding:12px 16px;'
+                                            : 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;padding:14px 20px;'"
                                     >
                                         <div style="display:flex;align-items:center;gap:8px;">
                                             <svg style="width:14px;height:14px;color:#4ade80;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
@@ -842,28 +845,23 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     </div>
 
                                     {{-- Iframe: cropped on PesePay's first page, full on 3DS redirect --}}
-                                    <div
-                                        style="position:relative;"
-                                        :style="loads <= 1 ? 'flex:1;overflow:hidden;' : 'flex:1;'"
-                                    >
+                                    <div style="flex:1;overflow:hidden;position:relative;">
                                         <iframe
                                             src="{{ $pesepayCardPopupUrl }}"
                                             allow="payment"
                                             title="Secure Card Payment"
                                             @load="loads++"
-                                            style="border:none;"
                                             :style="loads <= 1
                                                 ? (mobile
-                                                    ? 'position:absolute;top:-60px;left:0;width:100%;height:calc(100% + 110px);'
-                                                    : 'position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 120px);')
-                                                : 'position:absolute;top:0;left:0;width:100%;height:100%;'"
+                                                    ? 'position:absolute;top:-195px;left:0;width:100%;height:calc(100% + 455px);border:none;'
+                                                    : 'position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 350px);border:none;')
+                                                : 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'"
                                         ></iframe>
                                     </div>
 
                                     {{-- Footer --}}
                                     <div style="padding:8px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:8px;flex-shrink:0;background:#161616;">
                                         <svg style="width:11px;height:11px;color:rgba(255,255,255,0.20);flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
-                                        <span style="font-size:10px;color:rgba(255,255,255,0.20);font-family:'Azeret Mono',monospace;">Secured by PesePay · Ref: {{ $pesepayReferenceNumber }}</span>
                                     </div>
                                 </div>
                             </div>

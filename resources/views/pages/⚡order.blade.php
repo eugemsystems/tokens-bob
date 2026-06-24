@@ -182,10 +182,9 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
                     A confirmation has been sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>.
                 </p>
             @else
-                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 10px;line-height:1.15;">Payment Received!</h1>
+                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 10px;line-height:1.15;">Your Subscription Has Been Successfully Activated!</h1>
                 <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;line-height:22px;">
-                    Your payment has been confirmed.<br>
-                    You will be contacted at <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>.
+                    A confirmation has been sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>.
                 </p>
             @endif
 

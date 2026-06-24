@@ -663,6 +663,15 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
     @else
 
         <div style="max-width:1100px;margin:0 auto;padding:40px 24px 80px;overflow:hidden;">
+
+                    {{-- Error banner (full width, above both columns) --}}
+                    @if ($paymentError)
+                        <div style="display:flex;align-items:flex-start;gap:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:14px 16px;margin-bottom:24px;">
+                            <svg style="width:16px;height:16px;color:#f87171;flex-shrink:0;margin-top:1px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                            <p style="font-size:13px;color:#f87171;margin:0;line-height:20px;">{{ $paymentError }}</p>
+                        </div>
+                    @endif
+
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;min-width:0;">
 
                 {{-- ── LEFT: ORDER SUMMARY ── --}}
@@ -707,14 +716,6 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
                 {{-- ── RIGHT: PAYMENT ── --}}
                 <div style="display:flex;flex-direction:column;gap:20px;">
-
-                    {{-- Error banner --}}
-                    @if ($paymentError)
-                        <div style="display:flex;align-items:flex-start;gap:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:14px 16px;">
-                            <svg style="width:16px;height:16px;color:#f87171;flex-shrink:0;margin-top:1px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
-                            <p style="font-size:13px;color:#f87171;margin:0;line-height:20px;">{{ $paymentError }}</p>
-                        </div>
-                    @endif
 
                     {{-- ── STEP 1: Customer details ── --}}
                     @if ($step === 1)
@@ -904,11 +905,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     </div>
 
                                     {{-- Iframe: cropped on PesePay's first page, full on 3DS redirect --}}
-                                    <div
-                                        :style="mobile
-                                            ? 'flex:1;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(to bottom,black 0,black calc(100% - 36px),transparent 100%);mask-image:linear-gradient(to bottom,black 0,black calc(100% - 36px),transparent 100%);'
-                                            : 'flex:1;overflow:hidden;position:relative;'"
-                                    >
+                                    <div style="flex:1;overflow:hidden;position:relative;">
                                         <iframe
                                             src="{{ $pesepayCardPopupUrl }}"
                                             allow="payment"
@@ -920,8 +917,12 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                                     : 'position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 350px);border:none;')
                                                 : 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'"
                                         ></iframe>
-                                        {{-- Desktop-only gradient to cover footer --}}
-                                        <div x-show="!mobile" style="position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,#1a1a1a);z-index:1;pointer-events:none;"></div>
+                                        {{-- Gradient overlay hides PesePay footer; z-index keeps it above iframe but pointer-events:none lets touches pass through --}}
+                                        <div
+                                            :style="mobile
+                                                ? 'position:absolute;bottom:0;left:0;right:0;height:120px;background:linear-gradient(to bottom,transparent,#1a1a1a 60%);z-index:1;pointer-events:none;'
+                                                : 'position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,#1a1a1a);z-index:1;pointer-events:none;'"
+                                        ></div>
                                     </div>
 
                                     {{-- Footer --}}

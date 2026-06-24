@@ -26,6 +26,7 @@ class Transaction extends Model
         'gateway_payment_id',
         'is_webhook_purchase',
         'category_id',
+        'partner_data',
     ];
 
     protected function casts(): array
@@ -34,6 +35,7 @@ class Transaction extends Model
             'amount' => 'decimal:2',
             'status' => TransactionStatus::class,
             'is_webhook_purchase' => 'boolean',
+            'partner_data' => 'array',
         ];
     }
 

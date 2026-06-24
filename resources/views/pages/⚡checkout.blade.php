@@ -73,6 +73,13 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
     public ?int $pendingTransactionId = null;
 
+    // Partner redirect params (e.g. BobTV)
+    public string $partnerReference = '';
+    public string $partnerPlanId = '';
+    public string $partnerProductId = '';
+    public string $partnerName = '';
+    public string $partnerRedirectUrl = '';
+
     private const MAX_POLL_ATTEMPTS = 120;
 
     #[Computed]
@@ -141,12 +148,30 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
         $this->whopPrefillEmail = ! empty($pool)
             ? $pool[array_rand($pool)]
             : Setting::get('whop_prefill_email', '');
+
+        // Partner redirect auto-fill (e.g. BobTV)
+        $this->partnerReference   = (string) request()->query('reference', '');
+        $this->partnerPlanId      = (string) request()->query('bobtv_plan_id', '');
+        $this->partnerProductId   = (string) request()->query('product', '');
+        $this->partnerName        = (string) request()->query('name', '');
+        $this->partnerRedirectUrl = (string) request()->query('redirect_url', '');
+
+        if (request()->query('email')) {
+            $this->customerEmail = (string) request()->query('email');
+        }
+
+        if (request()->query('phone') || request()->query('cellphone')) {
+            $this->customerPhone = (string) (request()->query('phone') ?? request()->query('cellphone'));
+        }
     }
 
     public function goToPayment(): void
     {
         $this->validateOnly('customerEmail');
-        $this->validateOnly('customerPhone');
+
+        if (! $this->partnerReference) {
+            $this->validateOnly('customerPhone');
+        }
 
         $this->paymentError = '';
 
@@ -154,7 +179,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             cart: $this->cart,
             customerData: [
                 'email' => $this->customerEmail,
-                'phone' => $this->customerPhone,
+                'phone' => $this->customerPhone ?: 'N/A',
                 'ip'    => request()->ip(),
             ],
         );
@@ -167,6 +192,17 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
         $this->checkoutType         = $result['checkout_type'];
         $this->pendingTransactionId = $result['transaction_id'];
+
+        if ($this->partnerReference) {
+            Transaction::find($this->pendingTransactionId)?->update([
+                'partner_data' => [
+                    'reference'     => $this->partnerReference,
+                    'bobtv_plan_id' => $this->partnerPlanId,
+                    'product'       => $this->partnerProductId,
+                    'name'          => $this->partnerName,
+                ],
+            ]);
+        }
 
         if ($result['checkout_type'] === 'whop') {
             $this->whopCheckoutId  = $result['data']['checkout_id'];
@@ -678,32 +714,51 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
                     {{-- ── STEP 1: Customer details ── --}}
                     @if ($step === 1)
-                        <div>
-                            <h2 style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.40);text-transform:uppercase;letter-spacing:3px;margin:0 0 16px;">Your Details</h2>
-                            <div style="background:#1a1a1a;border-radius:20px;border:1px solid rgba(255,255,255,0.08);padding:28px;">
-                                <form wire:submit="goToPayment" style="display:flex;flex-direction:column;gap:18px;">
-
-                                    <flux:input wire:model="customerEmail" label="Email Address" type="email" placeholder="you@example.com" description="Your tokens and receipt will be sent here." icon="envelope" required autofocus />
-                                    <flux:input wire:model="customerPhone" label="Phone Number" type="tel" placeholder="072 000 0000" icon="phone" required />
-
-                                    <button
-                                        type="submit"
-                                        style="width:100%;background:#DDF247;color:#111;font-weight:900;font-size:15px;padding:15px;border-radius:13px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;"
-                                        onmouseenter="this.style.opacity='0.88'" onmouseleave="this.style.opacity='1'"
-                                    >
-                                        <span wire:loading.remove wire:target="goToPayment" style="display:flex;align-items:center;gap:8px;">
-                                            Continue to Payment
-                                            <svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-                                        </span>
-                                        <span wire:loading.flex wire:target="goToPayment" style="align-items:center;gap:8px;">
-                                            <svg style="width:17px;height:17px;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
-                                            Preparing…
-                                        </span>
-                                    </button>
-
-                                </form>
+                        @if ($partnerReference && ! $paymentError)
+                            {{-- Partner redirect: auto-advance without showing the form --}}
+                            <div x-data x-init="$wire.goToPayment()" style="background:#1a1a1a;border-radius:20px;border:1px solid rgba(255,255,255,0.08);padding:40px 28px;display:flex;flex-direction:column;align-items:center;gap:14px;">
+                                <svg style="width:32px;height:32px;color:#DDF247;animation:spin 1.2s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+                                <p style="font-size:14px;font-weight:700;color:#fff;margin:0;">Preparing your payment…</p>
+                                <p style="font-size:12px;color:rgba(255,255,255,0.35);margin:0;">{{ $customerEmail }}</p>
                             </div>
-                        </div>
+                        @elseif ($partnerReference && $paymentError)
+                            {{-- Partner redirect: error state with retry --}}
+                            <div style="background:#1a1a1a;border-radius:20px;border:1px solid rgba(255,255,255,0.08);padding:28px;display:flex;flex-direction:column;align-items:center;gap:14px;">
+                                <p style="font-size:13px;color:#f87171;margin:0;text-align:center;">{{ $paymentError }}</p>
+                                <button wire:click="goToPayment" style="background:#DDF247;color:#111;font-weight:900;font-size:14px;padding:12px 28px;border-radius:12px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;">
+                                    <span wire:loading.remove wire:target="goToPayment">Try Again</span>
+                                    <span wire:loading wire:target="goToPayment">Preparing…</span>
+                                </button>
+                            </div>
+                        @else
+                            {{-- Normal form --}}
+                            <div>
+                                <h2 style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.40);text-transform:uppercase;letter-spacing:3px;margin:0 0 16px;">Your Details</h2>
+                                <div style="background:#1a1a1a;border-radius:20px;border:1px solid rgba(255,255,255,0.08);padding:28px;">
+                                    <form wire:submit="goToPayment" style="display:flex;flex-direction:column;gap:18px;">
+
+                                        <flux:input wire:model="customerEmail" label="Email Address" type="email" placeholder="you@example.com" description="Your tokens and receipt will be sent here." icon="envelope" required autofocus />
+                                        <flux:input wire:model="customerPhone" label="Phone Number" type="tel" placeholder="072 000 0000" icon="phone" required />
+
+                                        <button
+                                            type="submit"
+                                            style="width:100%;background:#DDF247;color:#111;font-weight:900;font-size:15px;padding:15px;border-radius:13px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;"
+                                            onmouseenter="this.style.opacity='0.88'" onmouseleave="this.style.opacity='1'"
+                                        >
+                                            <span wire:loading.remove wire:target="goToPayment" style="display:flex;align-items:center;gap:8px;">
+                                                Continue to Payment
+                                                <svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+                                            </span>
+                                            <span wire:loading.flex wire:target="goToPayment" style="align-items:center;gap:8px;">
+                                                <svg style="width:17px;height:17px;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+                                                Preparing…
+                                            </span>
+                                        </button>
+
+                                    </form>
+                                </div>
+                            </div>
+                        @endif
                     @endif
 
                     {{-- ── STEP 2: Non-Whop payment UIs ── --}}
@@ -857,6 +912,8 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                                     : 'position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 350px);border:none;')
                                                 : 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'"
                                         ></iframe>
+                                        {{-- Gradient mask: hides PesePay's footer regardless of scroll position --}}
+                                        <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to bottom,transparent,#1a1a1a);z-index:1;pointer-events:none;"></div>
                                     </div>
 
                                     {{-- Footer --}}

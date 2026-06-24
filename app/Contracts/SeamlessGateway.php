@@ -22,7 +22,7 @@ interface SeamlessGateway
     public function paymentMethods(): array;
 
     /**
-     * @return array{success: bool, reference_number: string, transaction_status: string, message: string}
+     * @return array{success: bool, reference_number: string, transaction_status: string, redirect_url: string, message: string}
      */
     public function makeCardPayment(Transaction $transaction, string $paymentMethodCode, string $cardNumber, string $cardExpiry, string $cvv): array;
 

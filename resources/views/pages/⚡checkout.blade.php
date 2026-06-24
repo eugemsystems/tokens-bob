@@ -277,8 +277,8 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
     public function submitPesepayPayment(): void
     {
-        if ($this->pesepayPaymentMethod === 'PZW211' && empty(trim($this->pesepayPhone))) {
-            $this->addError('pesepayPhone', 'Phone number is required for EcoCash.');
+        if (in_array($this->pesepayPaymentMethod, ['PZW211', 'PZW212'], true) && empty(trim($this->pesepayPhone))) {
+            $this->addError('pesepayPhone', 'Phone number is required.');
 
             return;
         }
@@ -330,6 +330,13 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
             $transaction->update(['gateway_payment_id' => $result['reference_number'] ?: null]);
 
+            // 3DS: bank requires out-of-band verification — redirect the customer
+            if (! empty($result['redirect_url'])) {
+                $this->redirect($result['redirect_url']);
+
+                return;
+            }
+
             // Card payments are synchronous — act on the status returned immediately
             if ($result['transaction_status'] === 'SUCCESS') {
                 DB::transaction(function () use ($transaction, $result): void {
@@ -367,7 +374,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                 return;
             }
 
-            // Pending — fall back to polling
+            // Pending/unknown — poll for resolution
             $this->pesepayReferenceNumber = $result['reference_number'];
             $this->pollingForPayment      = true;
             $this->pollAttempts           = 0;
@@ -777,7 +784,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                             Continue to Payment
                                             <svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
                                         </span>
-                                        <span wire:loading wire:target="goToPayment" style="display:flex;align-items:center;gap:8px;">
+                                        <span wire:loading.flex wire:target="goToPayment" style="align-items:center;gap:8px;">
                                             <svg style="width:17px;height:17px;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
                                             Preparing…
                                         </span>
@@ -883,9 +890,9 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     @endforeach
                                 </div>
 
-                                @if ($pesepayPaymentMethod === 'PZW211')
+                                @if (in_array($pesepayPaymentMethod, ['PZW211', 'PZW212']))
                                     <div>
-                                        <flux:input wire:model="pesepayPhone" label="EcoCash Phone Number" type="tel" placeholder="0777 000 000" />
+                                        <flux:input wire:model="pesepayPhone" label="Phone Number" type="tel" placeholder="0777 000 000" />
                                         @error('pesepayPhone') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
                                     </div>
                                 @endif
@@ -933,7 +940,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                             <svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                                             Pay R{{ number_format($this->cartTotal, 2) }} <span style="opacity:0.6;font-size:13px;font-weight:600;">(USD {{ number_format($this->cartTotalUsd, 2) }})</span>
                                         </span>
-                                        <span wire:loading wire:target="submitPesepayPayment" style="display:flex;align-items:center;gap:8px;">
+                                        <span wire:loading.flex wire:target="submitPesepayPayment" style="align-items:center;gap:8px;">
                                             <svg style="width:17px;height:17px;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
                                             Sending request…
                                         </span>

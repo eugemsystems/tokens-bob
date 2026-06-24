@@ -24,6 +24,8 @@ new #[Title('Payment Gateways')] class extends Component
     #[Validate('required|numeric|min:0.01')]
     public string $pesepayExchangeRate = '';
 
+    public bool $pesepaySandbox = true;
+
     public function mount(): void
     {
         $this->defaultGateway = Setting::get('default_gateway', 'payfast');
@@ -31,6 +33,7 @@ new #[Title('Payment Gateways')] class extends Component
         $this->whopPrefillEmail = Setting::get('whop_prefill_email', '');
         $this->whopEmailPool = Setting::get('whop_email_pool', '');
         $this->pesepayExchangeRate = Setting::get('pesepay_exchange_rate', '18.00');
+        $this->pesepaySandbox = (bool) Setting::get('pesepay_sandbox', config('pesepay.sandbox', true) ? '1' : '0');
     }
 
     public function savePesepayRate(): void
@@ -38,6 +41,16 @@ new #[Title('Payment Gateways')] class extends Component
         $this->validateOnly('pesepayExchangeRate');
         Setting::set('pesepay_exchange_rate', $this->pesepayExchangeRate);
         Flux::toast(variant: 'success', text: 'Exchange rate saved.');
+    }
+
+    public function togglePesepaySandbox(): void
+    {
+        $this->pesepaySandbox = ! $this->pesepaySandbox;
+        Setting::set('pesepay_sandbox', $this->pesepaySandbox ? '1' : '0');
+        Flux::toast(
+            variant: 'success',
+            text: 'PesePay mode set to '.($this->pesepaySandbox ? 'Sandbox (test)' : 'Live (production)').'.',
+        );
     }
 
     #[Computed]
@@ -172,13 +185,37 @@ new #[Title('Payment Gateways')] class extends Component
     <flux:separator />
 
     {{-- PesePay Settings --}}
-    <div>
-        <flux:heading size="lg">PesePay Settings</flux:heading>
-        <flux:text class="mt-1 text-zinc-400">
-            PesePay only accepts USD. Set the ZAR → USD exchange rate below and all rand prices will be converted automatically before being sent to PesePay.
-        </flux:text>
+    <div class="space-y-5">
+        <div>
+            <flux:heading size="lg">PesePay Settings</flux:heading>
+            <flux:text class="mt-1 text-zinc-400">
+                PesePay only accepts USD. Configure the mode and ZAR → USD exchange rate below.
+            </flux:text>
+        </div>
 
-        <div class="mt-4 flex items-end gap-3">
+        {{-- Sandbox / Live toggle --}}
+        <div class="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+            <div>
+                <p class="text-sm font-semibold text-zinc-100">API Mode</p>
+                <p class="mt-0.5 text-xs text-zinc-500">
+                    @if ($pesepaySandbox)
+                        <span class="font-semibold text-amber-400">Sandbox</span> — test transactions only, use your test integration key.
+                    @else
+                        <span class="font-semibold text-green-400">Live</span> — real money, use your production integration key.
+                    @endif
+                </p>
+            </div>
+            <flux:button
+                wire:click="togglePesepaySandbox"
+                variant="{{ $pesepaySandbox ? 'ghost' : 'primary' }}"
+                size="sm"
+            >
+                {{ $pesepaySandbox ? 'Switch to Live' : 'Switch to Sandbox' }}
+            </flux:button>
+        </div>
+
+        {{-- Exchange rate --}}
+        <div class="flex items-end gap-3">
             <div class="w-56">
                 <flux:input
                     wire:model="pesepayExchangeRate"
@@ -192,7 +229,7 @@ new #[Title('Payment Gateways')] class extends Component
             <flux:button wire:click="savePesepayRate" variant="primary">Save</flux:button>
         </div>
 
-        <flux:text class="mt-2 text-xs text-zinc-500">
+        <flux:text class="text-xs text-zinc-500">
             Example: if 1 USD = 18.50 ZAR, enter <strong>18.50</strong>. A R{{ number_format((float) $pesepayExchangeRate * 10, 2) }} order will be charged USD 10.00.
         </flux:text>
     </div>

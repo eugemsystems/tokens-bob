@@ -6,6 +6,7 @@ use App\Contracts\PaymentGateway;
 use App\Contracts\SeamlessGateway;
 use App\Models\Setting;
 use App\Models\Transaction;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -58,7 +59,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
                 'phoneNumber' => $transaction->customer_phone ?? '',
                 'name' => '',
             ],
-            'paymentMethodRequiredFields' => $paymentMethodCode === 'PZW211'
+            'paymentMethodRequiredFields' => in_array($paymentMethodCode, ['PZW211', 'PZW212'], true)
                 ? ['customerPhoneNumber' => $phoneNumber]
                 : new \stdClass,
         ];
@@ -76,22 +77,28 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             'payment_method_code' => $paymentMethodCode,
         ]);
 
-        $response = Http::withHeaders([
-            'authorization' => config('pesepay.integration_key'),
-            'Content-Type' => 'application/json',
-        ])->post($this->makePaymentUrl(), ['payload' => $encrypted]);
+        $response = $this->sendRequest('POST', $this->makePaymentUrl(), ['payload' => $encrypted]);
+
+        if ($response === null) {
+            Log::error('PesePay: request failed for make payment', ['transaction_id' => $transaction->id]);
+
+            return ['success' => false, 'reference_number' => '', 'poll_url' => '', 'message' => 'Could not reach payment gateway. Please try again later.'];
+        }
 
         Log::info('PesePay: make payment response', [
             'transaction_id' => $transaction->id,
-            'http_status' => $response->status(),
-            'body' => $response->body(),
+            'http_status' => $response['status'],
+            'body' => $response['body'],
         ]);
 
-        if ($response->failed()) {
-            return ['success' => false, 'reference_number' => '', 'poll_url' => '', 'message' => 'Payment request failed. Please try again.'];
+        if (! $response['succeeded']) {
+            $apiMessage = $response['json']['message'] ?? null;
+            $message = ($apiMessage && ! str_contains($apiMessage, 'No message')) ? $apiMessage : 'Payment request failed. Please try again.';
+
+            return ['success' => false, 'reference_number' => '', 'poll_url' => '', 'message' => $message];
         }
 
-        $data = $this->decryptPayload($response->json('payload') ?? '');
+        $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
             return ['success' => false, 'reference_number' => '', 'poll_url' => '', 'message' => 'Invalid response from payment gateway.'];
@@ -113,23 +120,26 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
 
     public function checkStatus(string $referenceNumber): ?array
     {
-        $response = Http::withHeaders([
-            'authorization' => config('pesepay.integration_key'),
-            'Content-Type' => 'application/json',
-        ])->get($this->baseUrl().'/payments/check-payment', [
+        $response = $this->sendRequest('GET', $this->baseUrl().'/payments/check-payment', [
             'referenceNumber' => $referenceNumber,
         ]);
 
-        Log::info('PesePay: check payment status', [
-            'reference_number' => $referenceNumber,
-            'http_status' => $response->status(),
-        ]);
+        if ($response === null) {
+            Log::error('PesePay: request failed for check status', ['reference_number' => $referenceNumber]);
 
-        if ($response->failed()) {
             return null;
         }
 
-        $data = $this->decryptPayload($response->json('payload') ?? '');
+        Log::info('PesePay: check payment status', [
+            'reference_number' => $referenceNumber,
+            'http_status' => $response['status'],
+        ]);
+
+        if (! $response['succeeded']) {
+            return null;
+        }
+
+        $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
             return null;
@@ -144,8 +154,8 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
     public function paymentMethods(): array
     {
         return [
-            ['code' => 'PZW211', 'name' => 'EcoCash USD', 'requires_phone' => true,  'is_card' => false],
-            ['code' => 'PZW212', 'name' => 'Innbucks',    'requires_phone' => false, 'is_card' => false],
+            ['code' => 'PZW211', 'name' => 'EcoCash USD', 'requires_phone' => true, 'is_card' => false],
+            ['code' => 'PZW212', 'name' => 'Innbucks',    'requires_phone' => true, 'is_card' => false],
             ['code' => 'PZW204', 'name' => 'Visa',        'requires_phone' => false, 'is_card' => true],
             ['code' => 'PZW205', 'name' => 'Mastercard',  'requires_phone' => false, 'is_card' => true],
         ];
@@ -178,29 +188,32 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
         $encrypted = $this->encrypt($body);
 
         if ($encrypted === null) {
-            return ['success' => false, 'reference_number' => '', 'message' => 'Encryption failed. Please try again.'];
+            return ['success' => false, 'reference_number' => '', 'transaction_status' => '', 'redirect_url' => '', 'message' => 'Encryption failed. Please try again.'];
         }
 
-        $response = Http::withHeaders([
-            'authorization' => config('pesepay.integration_key'),
-            'Content-Type' => 'application/json',
-        ])->post($this->makeCardPaymentUrl(), ['payload' => $encrypted]);
+        $response = $this->sendRequest('POST', $this->makeCardPaymentUrl(), ['payload' => $encrypted]);
+
+        if ($response === null) {
+            Log::error('PesePay: request failed for card payment', ['transaction_id' => $transaction->id]);
+
+            return ['success' => false, 'reference_number' => '', 'transaction_status' => '', 'redirect_url' => '', 'message' => 'Could not reach payment gateway. Please try again later.'];
+        }
 
         Log::info('PesePay: make card payment response', [
             'transaction_id' => $transaction->id,
-            'http_status' => $response->status(),
-            'url' => $this->makePaymentUrl(),
-            'body' => $response->body(),
+            'http_status' => $response['status'],
+            'url' => $this->makeCardPaymentUrl(),
+            'body' => $response['body'],
         ]);
 
-        if ($response->failed()) {
-            $apiMessage = $response->json('message');
+        if (! $response['succeeded']) {
+            $apiMessage = $response['json']['message'] ?? null;
             $message = ($apiMessage && ! str_contains($apiMessage, 'No message')) ? $apiMessage : 'Card payment request failed. Please try again.';
 
-            return ['success' => false, 'reference_number' => '', 'message' => $message];
+            return ['success' => false, 'reference_number' => '', 'transaction_status' => '', 'redirect_url' => '', 'message' => $message];
         }
 
-        $data = $this->decryptPayload($response->json('payload') ?? '');
+        $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
             return ['success' => false, 'reference_number' => '', 'message' => 'Invalid response from payment gateway.'];
@@ -218,6 +231,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             'success' => true,
             'reference_number' => (string) ($referenceNumber ?? ''),
             'transaction_status' => $data['transactionStatus'] ?? '',
+            'redirect_url' => $data['redirectUrl'] ?? '',
             'message' => '',
         ];
     }
@@ -241,21 +255,22 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Encryption failed. Please try again.'];
         }
 
-        $response = Http::withHeaders([
-            'authorization' => config('pesepay.integration_key'),
-            'Content-Type' => 'application/json',
-        ])->post($this->baseUrl().'/payments/initiate', ['payload' => $encrypted]);
+        $response = $this->sendRequest('POST', $this->baseUrl().'/payments/initiate', ['payload' => $encrypted]);
+
+        if ($response === null) {
+            return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Could not reach payment gateway. Please try again later.'];
+        }
 
         Log::info('PesePay: initiate transaction response', [
             'transaction_id' => $transaction->id,
-            'http_status' => $response->status(),
+            'http_status' => $response['status'],
         ]);
 
-        if ($response->failed()) {
+        if (! $response['succeeded']) {
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Failed to initiate card payment. Please try again.'];
         }
 
-        $data = $this->decryptPayload($response->json('payload') ?? '');
+        $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Invalid response from payment gateway.'];
@@ -301,6 +316,101 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
         return $encrypted !== false ? $encrypted : null;
     }
 
+    /**
+     * Send a request to PesePay, falling back to native curl if Guzzle fails
+     * to parse the response (PesePay's nginx sends a folded Strict-Transport-Security
+     * header that some Guzzle/libcurl versions reject as invalid).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: string, json: array<string, mixed>|null, succeeded: bool}|null
+     */
+    private function sendRequest(string $method, string $url, array $payload = []): ?array
+    {
+        try {
+            $client = Http::withHeaders([
+                'authorization' => config('pesepay.integration_key'),
+                'Content-Type' => 'application/json',
+            ]);
+
+            $response = $method === 'GET'
+                ? $client->get($url, $payload)
+                : $client->post($url, $payload);
+
+            return [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'json' => $response->json(),
+                'succeeded' => $response->successful(),
+            ];
+        } catch (ConnectionException $e) {
+            Log::warning('PesePay: Guzzle failed, retrying with native curl', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->curlRequest($method, $url, $payload);
+        }
+    }
+
+    /**
+     * Native-curl fallback used when Guzzle rejects PesePay's response headers.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{status: int, body: string, json: array<string, mixed>|null, succeeded: bool}|null
+     */
+    private function curlRequest(string $method, string $url, array $payload = []): ?array
+    {
+        $ch = curl_init();
+
+        $opts = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HTTPHEADER => [
+                'authorization: '.config('pesepay.integration_key'),
+                'Content-Type: application/json',
+            ],
+        ];
+
+        if ($method === 'POST') {
+            $opts[CURLOPT_URL] = $url;
+            $opts[CURLOPT_POST] = true;
+            $opts[CURLOPT_POSTFIELDS] = json_encode($payload);
+        } else {
+            $opts[CURLOPT_URL] = empty($payload) ? $url : $url.'?'.http_build_query($payload);
+        }
+
+        curl_setopt_array($ch, $opts);
+
+        $body = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($body === false || $curlError !== '') {
+            Log::error('PesePay: native curl request failed', ['url' => $url, 'error' => $curlError]);
+
+            return null;
+        }
+
+        $json = json_decode((string) $body, true);
+
+        return [
+            'status' => $httpCode,
+            'body' => (string) $body,
+            'json' => json_last_error() === JSON_ERROR_NONE ? $json : null,
+            'succeeded' => $httpCode < 400,
+        ];
+    }
+
+    private function isSandbox(): bool
+    {
+        $setting = Setting::get('pesepay_sandbox');
+
+        return $setting !== null ? (bool) $setting : (bool) config('pesepay.sandbox', true);
+    }
+
     private function toUsd(float $zarAmount): float
     {
         $rate = (float) Setting::get('pesepay_exchange_rate', '18.00');
@@ -310,21 +420,21 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
 
     private function baseUrl(): string
     {
-        return config('pesepay.sandbox')
+        return $this->isSandbox()
             ? 'https://api.test.sandbox.pesepay.com/payments-engine/v1'
             : 'https://api.pesepay.com/api/payments-engine/v1';
     }
 
     private function makePaymentUrl(): string
     {
-        return config('pesepay.sandbox')
+        return $this->isSandbox()
             ? 'https://api.test.sandbox.pesepay.com/payments-engine/v1/payments/make-payment'
-            : 'https://api.pesepay.com/api/payments-engine/v2/payments/make-payment';
+            : 'https://api.pesepay.com/api/payments-engine/v1/payments/make-payment';
     }
 
     private function makeCardPaymentUrl(): string
     {
-        return config('pesepay.sandbox')
+        return $this->isSandbox()
             ? 'https://api.test.sandbox.pesepay.com/payments-engine/v2/payments/make-payment'
             : 'https://api.pesepay.com/api/payments-engine/v2/payments/make-payment';
     }

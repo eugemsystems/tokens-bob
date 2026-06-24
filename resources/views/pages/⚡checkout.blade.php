@@ -904,7 +904,11 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     </div>
 
                                     {{-- Iframe: cropped on PesePay's first page, full on 3DS redirect --}}
-                                    <div style="flex:1;overflow:hidden;position:relative;">
+                                    <div
+                                        :style="mobile
+                                            ? 'flex:1;position:relative;-webkit-mask-image:linear-gradient(to bottom,transparent 0px,transparent 195px,black 210px,black calc(100% - 80px),transparent calc(100% - 44px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0px,transparent 195px,black 210px,black calc(100% - 80px),transparent calc(100% - 44px),transparent 100%);'
+                                            : 'flex:1;overflow:hidden;position:relative;'"
+                                    >
                                         <iframe
                                             src="{{ $pesepayCardPopupUrl }}"
                                             allow="payment"
@@ -912,12 +916,12 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                             @load="loads++"
                                             :style="loads <= 1
                                                 ? (mobile
-                                                    ? 'position:absolute;top:-195px;left:0;width:100%;height:calc(100% + 900px);border:none;'
+                                                    ? 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'
                                                     : 'position:absolute;top:-70px;left:-300px;width:calc(100% + 300px);height:calc(100% + 350px);border:none;')
                                                 : 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'"
                                         ></iframe>
-                                        {{-- Gradient mask: hides PesePay's footer regardless of scroll position --}}
-                                        <div style="position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,#1a1a1a);z-index:1;pointer-events:none;"></div>
+                                        {{-- Desktop-only gradient to cover footer --}}
+                                        <div x-show="!mobile" style="position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,#1a1a1a);z-index:1;pointer-events:none;"></div>
                                     </div>
 
                                     {{-- Footer --}}

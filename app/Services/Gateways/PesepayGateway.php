@@ -143,9 +143,81 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
     public function paymentMethods(): array
     {
         return [
-            ['code' => 'PZW211', 'name' => 'EcoCash USD',             'requires_phone' => true,  'is_redirect' => false],
-            ['code' => 'PZW212', 'name' => 'Innbucks',                 'requires_phone' => false, 'is_redirect' => false],
-            ['code' => 'CARD',   'name' => 'Card (Visa / Mastercard)', 'requires_phone' => false, 'is_redirect' => true],
+            ['code' => 'PZW211', 'name' => 'EcoCash USD', 'requires_phone' => true,  'is_card' => false],
+            ['code' => 'PZW212', 'name' => 'Innbucks',    'requires_phone' => false, 'is_card' => false],
+            ['code' => 'PZW204', 'name' => 'Visa',        'requires_phone' => false, 'is_card' => true],
+            ['code' => 'PZW205', 'name' => 'Mastercard',  'requires_phone' => false, 'is_card' => true],
+        ];
+    }
+
+    public function makeCardPayment(Transaction $transaction, string $paymentMethodCode, string $cardNumber, string $cardExpiry, string $cvv): array
+    {
+        $body = [
+            'amountDetails' => [
+                'amount' => (float) $transaction->amount,
+                'currencyCode' => config('pesepay.currency_code', 'USD'),
+            ],
+            'merchantReference' => 'TXN-'.$transaction->id,
+            'reasonForPayment' => 'Token purchase #'.$transaction->id,
+            'resultUrl' => rtrim(config('app.url'), '/').'/pesepay/result',
+            'returnUrl' => rtrim(config('app.url'), '/').'/order/'.$transaction->id,
+            'paymentMethodCode' => $paymentMethodCode,
+            'customer' => [
+                'email' => $transaction->customer_email,
+                'phoneNumber' => $transaction->customer_phone ?? '',
+                'name' => '',
+            ],
+            'paymentMethodRequiredFields' => [
+                'creditCardNumber' => $cardNumber,
+                'creditCardExpiryDate' => $cardExpiry,
+                'creditCardSecurityNumber' => $cvv,
+            ],
+        ];
+
+        $encrypted = $this->encrypt($body);
+
+        if ($encrypted === null) {
+            return ['success' => false, 'reference_number' => '', 'message' => 'Encryption failed. Please try again.'];
+        }
+
+        $response = Http::withHeaders([
+            'authorization' => config('pesepay.integration_key'),
+            'Content-Type' => 'application/json',
+        ])->post($this->makeCardPaymentUrl(), ['payload' => $encrypted]);
+
+        Log::info('PesePay: make card payment response', [
+            'transaction_id' => $transaction->id,
+            'http_status' => $response->status(),
+            'url' => $this->makePaymentUrl(),
+            'body' => $response->body(),
+        ]);
+
+        if ($response->failed()) {
+            $apiMessage = $response->json('message');
+            $message = ($apiMessage && ! str_contains($apiMessage, 'No message')) ? $apiMessage : 'Card payment request failed. Please try again.';
+
+            return ['success' => false, 'reference_number' => '', 'message' => $message];
+        }
+
+        $data = $this->decryptPayload($response->json('payload') ?? '');
+
+        if ($data === null) {
+            return ['success' => false, 'reference_number' => '', 'message' => 'Invalid response from payment gateway.'];
+        }
+
+        // referenceNumber is null for card payments; extract it from pollUrl query string
+        $referenceNumber = $data['referenceNumber'] ?? null;
+
+        if (! $referenceNumber && ! empty($data['pollUrl'])) {
+            parse_str((string) parse_url($data['pollUrl'], PHP_URL_QUERY), $params);
+            $referenceNumber = $params['referenceNumber'] ?? null;
+        }
+
+        return [
+            'success' => true,
+            'reference_number' => (string) ($referenceNumber ?? ''),
+            'transaction_status' => $data['transactionStatus'] ?? '',
+            'message' => '',
         ];
     }
 
@@ -239,6 +311,13 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
     {
         return config('pesepay.sandbox')
             ? 'https://api.test.sandbox.pesepay.com/payments-engine/v1/payments/make-payment'
+            : 'https://api.pesepay.com/api/payments-engine/v2/payments/make-payment';
+    }
+
+    private function makeCardPaymentUrl(): string
+    {
+        return config('pesepay.sandbox')
+            ? 'https://api.test.sandbox.pesepay.com/payments-engine/v2/payments/make-payment'
             : 'https://api.pesepay.com/api/payments-engine/v2/payments/make-payment';
     }
 }

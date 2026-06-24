@@ -36,8 +36,42 @@ it('initiate returns seamless checkout type with payment methods including card'
     expect($result['success'])->toBeTrue()
         ->and($result['checkout_type'])->toBe('seamless')
         ->and($codes)->toContain('PZW211')
-        ->and($codes)->toContain('PZW212')
-        ->and($codes)->toContain('CARD');
+        ->and($codes)->toContain('PZW204')
+        ->and($codes)->toContain('PZW205');
+});
+
+it('makeCardPayment sends encrypted card payload and returns reference number on success', function () {
+    $transaction = Transaction::factory()->create([
+        'amount' => 10.00,
+        'customer_email' => 'test@example.com',
+    ]);
+
+    $fakeResponse = pesepayEncrypt([
+        'referenceNumber' => 'REF-2026-CARD-001',
+        'transactionStatus' => 'PENDING',
+    ]);
+
+    Http::fake(['*make-payment*' => Http::response(['payload' => $fakeResponse], 200)]);
+
+    $gateway = app(PesepayGateway::class);
+    $result = $gateway->makeCardPayment($transaction, 'PZW204', '4867960000005461', '08/27', '123');
+
+    expect($result['success'])->toBeTrue()
+        ->and($result['reference_number'])->toBe('REF-2026-CARD-001');
+
+    Http::assertSentCount(1);
+});
+
+it('makeCardPayment returns error when API call fails', function () {
+    $transaction = Transaction::factory()->create(['amount' => 10.00]);
+
+    Http::fake(['*make-payment*' => Http::response([], 500)]);
+
+    $gateway = app(PesepayGateway::class);
+    $result = $gateway->makeCardPayment($transaction, 'PZW204', '4867960000005461', '08/27', '123');
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['reference_number'])->toBe('');
 });
 
 it('initiateTransaction returns redirect url for card payment', function () {

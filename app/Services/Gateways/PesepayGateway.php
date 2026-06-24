@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class PesepayGateway implements PaymentGateway, SeamlessGateway
 {
@@ -44,12 +45,11 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
 
     public function makePayment(Transaction $transaction, string $paymentMethodCode, string $phoneNumber): array
     {
+        // v1 seamless (mobile money) expects flat amount/currencyCode and referenceNumber
         $body = [
-            'amountDetails' => [
-                'amount' => $this->toUsd((float) $transaction->amount),
-                'currencyCode' => config('pesepay.currency_code', 'USD'),
-            ],
-            'merchantReference' => 'TXN-'.$transaction->id.'-'.time(),
+            'amount' => $this->toUsd((float) $transaction->amount),
+            'currencyCode' => config('pesepay.currency_code', 'USD'),
+            'referenceNumber' => 'VGP-'.$transaction->id.'-'.Str::random(8),
             'reasonForPayment' => 'Token purchase #'.$transaction->id,
             'resultUrl' => rtrim(config('app.url'), '/').'/pesepay/result',
             'returnUrl' => rtrim(config('app.url'), '/').'/order/'.$transaction->id,
@@ -130,16 +130,26 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             return null;
         }
 
-        Log::info('PesePay: check payment status', [
-            'reference_number' => $referenceNumber,
-            'http_status' => $response['status'],
-        ]);
-
         if (! $response['succeeded']) {
+            Log::warning('PesePay: check payment status failed', [
+                'reference_number' => $referenceNumber,
+                'http_status' => $response['status'],
+                'body' => $response['body'],
+            ]);
+
             return null;
         }
 
         $data = $this->decryptPayload($response['json']['payload'] ?? '');
+
+        Log::info('PesePay: check payment status', [
+            'reference_number' => $referenceNumber,
+            'http_status' => $response['status'],
+            'transaction_status' => $data['transactionStatus'] ?? '(decrypt failed)',
+            'status_code' => $data['transactionStatusCode'] ?? null,
+            'status_description' => $data['transactionStatusDescription'] ?? null,
+            'decrypt_ok' => $data !== null,
+        ]);
 
         if ($data === null) {
             return null;
@@ -168,7 +178,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
                 'amount' => $this->toUsd((float) $transaction->amount),
                 'currencyCode' => config('pesepay.currency_code', 'USD'),
             ],
-            'merchantReference' => 'TXN-'.$transaction->id.'-'.time(),
+            'merchantReference' => 'VGP-'.$transaction->id.'-'.Str::random(8),
             'reasonForPayment' => 'Token purchase #'.$transaction->id,
             'resultUrl' => rtrim(config('app.url'), '/').'/pesepay/result',
             'returnUrl' => rtrim(config('app.url'), '/').'/order/'.$transaction->id,
@@ -216,8 +226,19 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
         $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
-            return ['success' => false, 'reference_number' => '', 'message' => 'Invalid response from payment gateway.'];
+            return ['success' => false, 'reference_number' => '', 'transaction_status' => '', 'redirect_url' => '', 'message' => 'Invalid response from payment gateway.'];
         }
+
+        Log::info('PesePay: card payment decrypted response', [
+            'transaction_id' => $transaction->id,
+            'transaction_status' => $data['transactionStatus'] ?? null,
+            'status_code' => $data['transactionStatusCode'] ?? null,
+            'status_description' => $data['transactionStatusDescription'] ?? null,
+            'redirect_url' => $data['redirectUrl'] ?? null,
+            'reference_number' => $data['referenceNumber'] ?? null,
+            'poll_url' => $data['pollUrl'] ?? null,
+            'transaction_metadata' => $data['transactionMetadata'] ?? null,
+        ]);
 
         // referenceNumber is null for card payments; extract it from pollUrl query string
         $referenceNumber = $data['referenceNumber'] ?? null;
@@ -243,7 +264,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
                 'amount' => $this->toUsd((float) $transaction->amount),
                 'currencyCode' => config('pesepay.currency_code', 'USD'),
             ],
-            'merchantReference' => 'TXN-'.$transaction->id.'-'.time(),
+            'merchantReference' => 'VGP-'.$transaction->id.'-'.Str::random(8),
             'reasonForPayment' => 'Token purchase #'.$transaction->id,
             'resultUrl' => rtrim(config('app.url'), '/').'/pesepay/result',
             'returnUrl' => rtrim(config('app.url'), '/').'/order/'.$transaction->id,

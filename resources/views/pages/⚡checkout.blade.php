@@ -69,9 +69,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
     public string $pesepayReferenceNumber = '';
     /** @var array<int, array{code: string, name: string, requires_phone: bool, is_card: bool}> */
     public array $pesepayPaymentMethods = [];
-    public string $pesepayCardNumber = '';
-    public string $pesepayCardExpiry = '';
-    public string $pesepayCardCvv = '';
+    public string $pesepayCardPopupUrl = '';
 
     public ?int $pendingTransactionId = null;
 
@@ -269,7 +267,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             'checkoutType', 'pendingTransactionId', 'pollingForPayment', 'pollAttempts',
             'flwData', 'cardAuthMode', 'cardRef', 'cardPin', 'cardOtp', 'cardAuthMessage',
             'pesepayPaymentMethod', 'pesepayPhone', 'pesepayReferenceNumber', 'pesepayPaymentMethods',
-            'pesepayCardNumber', 'pesepayCardExpiry', 'pesepayCardCvv',
+            'pesepayCardPopupUrl',
         ]);
         $this->paymentError = 'Payment cancelled — your cart is still saved.';
         $this->step         = 1;
@@ -301,26 +299,8 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
         }
 
         if (in_array($this->pesepayPaymentMethod, ['PZW204', 'PZW205'], true)) {
-            $this->validate([
-                'pesepayCardNumber' => 'required|min:13|max:19',
-                'pesepayCardExpiry' => ['required', 'regex:/^\d{2}\/\d{2}$/'],
-                'pesepayCardCvv'    => 'required|digits_between:3,4',
-            ], [
-                'pesepayCardNumber.required'     => 'Card number is required.',
-                'pesepayCardNumber.min'          => 'Enter a valid card number.',
-                'pesepayCardExpiry.required'     => 'Expiry date is required.',
-                'pesepayCardExpiry.regex'        => 'Use MM/YY format, e.g. 08/27.',
-                'pesepayCardCvv.required'        => 'CVV is required.',
-                'pesepayCardCvv.digits_between'  => 'CVV must be 3 or 4 digits.',
-            ]);
-
-            $result = $gateway->makeCardPayment(
-                $transaction,
-                $this->pesepayPaymentMethod,
-                preg_replace('/\D/', '', $this->pesepayCardNumber),
-                $this->pesepayCardExpiry,
-                $this->pesepayCardCvv,
-            );
+            // Open PesePay's hosted checkout in a popup — it handles card entry + iVeri + 3DS (Cardinal)
+            $result = $gateway->initiateTransaction($transaction);
 
             if (! $result['success']) {
                 $this->paymentError = $result['message'];
@@ -330,52 +310,8 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
             $transaction->update(['gateway_payment_id' => $result['reference_number'] ?: null]);
 
-            // 3DS: bank requires out-of-band verification — redirect the customer
-            if (! empty($result['redirect_url'])) {
-                $this->redirect($result['redirect_url']);
-
-                return;
-            }
-
-            // Card payments are synchronous — act on the status returned immediately
-            if ($result['transaction_status'] === 'SUCCESS') {
-                DB::transaction(function () use ($transaction, $result): void {
-                    $transaction->update([
-                        'status'             => TransactionStatus::Completed,
-                        'gateway_payment_id' => $result['reference_number'] ?: $transaction->gateway_payment_id,
-                    ]);
-
-                    Token::where('transaction_id', $transaction->id)
-                        ->where('status', TokenStatus::Reserved)
-                        ->update(['status' => TokenStatus::Sold]);
-                });
-
-                SendPurchaseEmail::dispatch($transaction->id, 'token');
-                session()->forget('checkout_cart');
-                $this->redirect(route('order', $transaction->id));
-
-                return;
-            }
-
-            $failStatuses = ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', 'AUTHORIZATION_FAILED'];
-
-            if (in_array($result['transaction_status'], $failStatuses, true)) {
-                DB::transaction(function () use ($transaction): void {
-                    $transaction->update(['status' => TransactionStatus::Failed]);
-
-                    Token::where('transaction_id', $transaction->id)
-                        ->where('status', TokenStatus::Reserved)
-                        ->update(['status' => TokenStatus::Available, 'transaction_id' => null]);
-                });
-
-                $this->paymentError = 'Your card payment was declined. Please check your details and try again.';
-                $this->step         = 1;
-
-                return;
-            }
-
-            // Pending/unknown — poll for resolution
             $this->pesepayReferenceNumber = $result['reference_number'];
+            $this->pesepayCardPopupUrl    = $result['redirect_url'];
             $this->pollingForPayment      = true;
             $this->pollAttempts           = 0;
 
@@ -898,35 +834,9 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                 @endif
 
                                 @if (in_array($pesepayPaymentMethod, ['PZW204', 'PZW205']))
-                                    <div style="display:flex;flex-direction:column;gap:12px;">
-                                        <div>
-                                            <flux:input wire:model="pesepayCardNumber" label="Card Number" type="text" placeholder="0000 0000 0000 0000" maxlength="19" autocomplete="cc-number" inputmode="numeric" />
-                                            @error('pesepayCardNumber') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
-                                        </div>
-                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                                            <div x-data="{ expiry: @entangle('pesepayCardExpiry') }">
-                                                <flux:input
-                                                    label="Expiry"
-                                                    type="text"
-                                                    placeholder="MM/YY"
-                                                    maxlength="5"
-                                                    autocomplete="cc-exp"
-                                                    inputmode="numeric"
-                                                    x-bind:value="expiry"
-                                                    x-on:input="
-                                                        let digits = $event.target.value.replace(/\D/g, '').slice(0, 4);
-                                                        let formatted = digits.length > 2 ? digits.slice(0,2) + '/' + digits.slice(2) : digits;
-                                                        expiry = formatted;
-                                                        $event.target.value = formatted;
-                                                    "
-                                                />
-                                                @error('pesepayCardExpiry') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
-                                            </div>
-                                            <div>
-                                                <flux:input wire:model="pesepayCardCvv" label="CVV" type="password" placeholder="•••" maxlength="4" autocomplete="cc-csc" inputmode="numeric" />
-                                                @error('pesepayCardCvv') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
-                                            </div>
-                                        </div>
+                                    <div style="display:flex;align-items:flex-start;gap:10px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.18);border-radius:10px;padding:12px 14px;">
+                                        <svg style="width:15px;height:15px;color:#60a5fa;flex-shrink:0;margin-top:1px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                        <p style="font-size:12px;color:#93c5fd;margin:0;line-height:18px;font-family:'Azeret Mono',monospace;">A secure popup will open to collect your card details and complete 3D Secure verification.</p>
                                     </div>
                                 @endif
 
@@ -949,15 +859,35 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                             </div>
                         @endif
 
-                        {{-- PesePay seamless: waiting for confirmation --}}
-                        @if ($checkoutType === 'seamless' && $pesepayReferenceNumber)
+                        {{-- PesePay card: hosted popup for 3DS (iVeri → Cardinal Cruise) --}}
+                        @if ($checkoutType === 'seamless' && $pesepayCardPopupUrl)
+                            <div
+                                wire:poll.5000ms="pollPesepayPayment"
+                                x-data="{ popup: null }"
+                                x-init="$nextTick(function () {
+                                    popup = window.open('{{ addslashes($pesepayCardPopupUrl) }}', 'pesepay_card', 'width=720,height=680,scrollbars=yes,resizable=yes');
+                                });"
+                                style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:32px;display:flex;flex-direction:column;align-items:center;gap:16px;"
+                            >
+                                <svg style="width:40px;height:40px;color:#DDF247;animation:spin 1.2s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+                                <p style="font-size:15px;font-weight:800;color:#fff;margin:0;">Complete payment in the popup</p>
+                                <p style="font-size:12px;color:rgba(255,255,255,0.45);font-family:'Azeret Mono',monospace;margin:0;text-align:center;">Enter your card details and complete 3D Secure verification in the secure window that just opened.</p>
+                                <button
+                                    x-on:click="popup = window.open('{{ addslashes($pesepayCardPopupUrl) }}', 'pesepay_card', 'width=720,height=680,scrollbars=yes,resizable=yes')"
+                                    style="font-size:13px;color:rgba(255,255,255,0.40);background:none;border:none;font-family:'Manrope',sans-serif;font-weight:600;cursor:pointer;"
+                                    onmouseenter="this.style.color='rgba(255,255,255,0.65)'" onmouseleave="this.style.color='rgba(255,255,255,0.40)'"
+                                >Reopen payment window ↗</button>
+                                <p style="font-size:11px;color:rgba(255,255,255,0.20);font-family:'Azeret Mono',monospace;margin:0;">Ref: {{ $pesepayReferenceNumber }}</p>
+                            </div>
+                        @endif
+
+                        {{-- PesePay seamless: waiting for EcoCash / Innbucks confirmation --}}
+                        @if ($checkoutType === 'seamless' && $pesepayReferenceNumber && ! $pesepayCardPopupUrl)
                             <div wire:poll.5000ms="pollPesepayPayment" style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:32px;display:flex;flex-direction:column;align-items:center;gap:16px;">
                                 <svg style="width:40px;height:40px;color:#DDF247;animation:spin 1.2s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
                                 <p style="font-size:15px;font-weight:800;color:#fff;margin:0;">Waiting for payment confirmation</p>
                                 <p style="font-size:12px;color:rgba(255,255,255,0.45);font-family:'Azeret Mono',monospace;margin:0;text-align:center;">
-                                    @if (in_array($pesepayPaymentMethod, ['PZW204', 'PZW205']))
-                                        Your card payment is being processed. This usually takes a few seconds.
-                                    @elseif ($pesepayPaymentMethod === 'PZW211')
+                                    @if ($pesepayPaymentMethod === 'PZW211')
                                         Check your EcoCash for a payment prompt and approve to complete your order.
                                     @else
                                         Check your Innbucks for a payment prompt and approve to complete your order.

@@ -48,7 +48,9 @@ class PesepayResultController extends Controller
             'merchant_ref' => $merchantRef,
         ]);
 
-        $transactionId = $merchantRef ? (int) str_replace('TXN-', '', $merchantRef) : null;
+        // Supports "VGP-31-aBcDeFgH" (current) and legacy "TXN-31" formats
+        preg_match('/(?:VGP|TXN)-(\d+)/', $merchantRef ?? '', $refMatches);
+        $transactionId = isset($refMatches[1]) ? (int) $refMatches[1] : null;
 
         if (! $transactionId) {
             Log::warning('PesePay: no transaction ID in merchant reference', ['merchant_ref' => $merchantRef]);

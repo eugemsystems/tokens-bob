@@ -264,7 +264,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
                 'amount' => $this->toUsd((float) $transaction->amount),
                 'currencyCode' => config('pesepay.currency_code', 'USD'),
             ],
-            'merchantReference' => 'VGP-'.$transaction->id.'-'.Str::random(8),
+            'merchantReference' => 'VGP-'.$transaction->id.'-'.(string) Str::uuid(),
             'reasonForPayment' => 'Token purchase #'.$transaction->id,
             'resultUrl' => rtrim(config('app.url'), '/').'/pesepay/result',
             'returnUrl' => rtrim(config('app.url'), '/').'/order/'.$transaction->id,

@@ -41,6 +41,12 @@ class GatewaySeeder extends Seeder
             // SnapScan
             'SNAPSCAN_API_KEY' => '',
             'SNAPSCAN_SNAP_CODE' => '',
+
+            // Pese Pay
+            'PESEPAY_SANDBOX' => 'true',
+            'PESEPAY_INTEGRATION_KEY' => '3fe9bb3a-e387-4359-b0aa-5291107dc32b',
+            'PESEPAY_ENCRYPTION_KEY' => 'd54ebfbe1f31449096992ed978ac1c73',
+            'PESEPAY_CURRENCY_CODE' => 'USD',
         ];
 
         $env = file_get_contents($envPath);

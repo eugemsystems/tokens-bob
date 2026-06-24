@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '/peach/return',
             '/whop/webhook',
             '/stripe/webhook',
+            '/pesepay/result',
         ]);
         // PayFast IPN signature is computed against ALL posted fields including empty ones.
         // Prevent the middleware from converting empty strings to null on these routes.

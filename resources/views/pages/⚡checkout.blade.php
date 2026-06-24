@@ -2,6 +2,7 @@
 
 use App\Actions\InitiateCartCheckout;
 use App\Contracts\DirectCardGateway;
+use App\Contracts\SeamlessGateway;
 use App\Enums\TokenStatus;
 use App\Enums\TransactionStatus;
 use App\Jobs\SendPurchaseEmail;
@@ -61,6 +62,13 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
     public string $cardPin = '';
     public string $cardOtp = '';
     public string $cardAuthMessage = '';
+
+    // PesePay seamless
+    public string $pesepayPaymentMethod = '';
+    public string $pesepayPhone = '';
+    public string $pesepayReferenceNumber = '';
+    /** @var array<int, array{code: string, name: string, requires_phone: bool, is_redirect: bool}> */
+    public array $pesepayPaymentMethods = [];
 
     public ?int $pendingTransactionId = null;
 
@@ -172,6 +180,9 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             $this->redirectUrl      = $result['data']['redirect_url'];
             $this->pollingForPayment = true;
             $this->pollAttempts     = 0;
+        } elseif ($result['checkout_type'] === 'seamless') {
+            $this->pesepayPaymentMethods = $result['data']['payment_methods'] ?? [];
+            $this->pesepayPhone          = $this->customerPhone;
         }
 
         $this->step = 2;
@@ -246,9 +257,148 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             'whopCheckoutId', 'whopPlanId', 'paymentUuid', 'qrUrl', 'redirectUrl',
             'checkoutType', 'pendingTransactionId', 'pollingForPayment', 'pollAttempts',
             'flwData', 'cardAuthMode', 'cardRef', 'cardPin', 'cardOtp', 'cardAuthMessage',
+            'pesepayPaymentMethod', 'pesepayPhone', 'pesepayReferenceNumber', 'pesepayPaymentMethods',
         ]);
         $this->paymentError = 'Payment cancelled — your cart is still saved.';
         $this->step         = 1;
+    }
+
+    public function submitPesepayPayment(): void
+    {
+        if ($this->pesepayPaymentMethod === 'PZW211' && empty(trim($this->pesepayPhone))) {
+            $this->addError('pesepayPhone', 'Phone number is required for EcoCash.');
+
+            return;
+        }
+
+        $this->paymentError = '';
+
+        $transaction = Transaction::find($this->pendingTransactionId);
+
+        if (! $transaction) {
+            $this->paymentError = 'Transaction not found.';
+            $this->step         = 1;
+
+            return;
+        }
+
+        $gateway = app(GatewayManager::class)->active();
+
+        if (! $gateway instanceof SeamlessGateway) {
+            return;
+        }
+
+        if ($this->pesepayPaymentMethod === 'CARD') {
+            $result = $gateway->initiateTransaction($transaction);
+
+            if (! $result['success']) {
+                $this->paymentError = $result['message'];
+
+                return;
+            }
+
+            $transaction->update(['gateway_payment_id' => $result['reference_number']]);
+            $this->pesepayReferenceNumber = $result['reference_number'];
+            $this->redirectUrl            = $result['redirect_url'];
+            $this->pollingForPayment      = true;
+            $this->pollAttempts           = 0;
+
+            return;
+        }
+
+        $result = $gateway->makePayment($transaction, $this->pesepayPaymentMethod, $this->pesepayPhone);
+
+        if (! $result['success']) {
+            $this->paymentError = $result['message'];
+
+            return;
+        }
+
+        $transaction->update(['gateway_payment_id' => $result['reference_number']]);
+
+        $this->pesepayReferenceNumber = $result['reference_number'];
+        $this->pollingForPayment      = true;
+        $this->pollAttempts           = 0;
+    }
+
+    public function pollPesepayPayment(): void
+    {
+        if (! $this->pollingForPayment || ! $this->pesepayReferenceNumber) {
+            return;
+        }
+
+        $this->pollAttempts++;
+
+        $transaction = Transaction::find($this->pendingTransactionId);
+
+        if ($transaction && $transaction->status === TransactionStatus::Completed) {
+            $this->pollingForPayment = false;
+            session()->forget('checkout_cart');
+            $this->redirect(route('order', $transaction->id));
+
+            return;
+        }
+
+        if ($transaction && $transaction->status === TransactionStatus::Failed) {
+            $this->pollingForPayment  = false;
+            $this->paymentError       = 'Your payment was not completed.';
+            $this->step               = 1;
+
+            return;
+        }
+
+        $gateway = app(GatewayManager::class)->active();
+
+        if ($gateway instanceof SeamlessGateway) {
+            $status = $gateway->checkStatus($this->pesepayReferenceNumber);
+
+            if ($status && $status['transaction_status'] === 'SUCCESS') {
+                if ($transaction && $transaction->status !== TransactionStatus::Completed) {
+                    DB::transaction(function () use ($transaction): void {
+                        $transaction->update([
+                            'status'             => TransactionStatus::Completed,
+                            'gateway_payment_id' => $this->pesepayReferenceNumber,
+                        ]);
+
+                        Token::where('transaction_id', $transaction->id)
+                            ->where('status', TokenStatus::Reserved)
+                            ->update(['status' => TokenStatus::Sold]);
+                    });
+
+                    SendPurchaseEmail::dispatch($transaction->id, 'token');
+                }
+
+                $this->pollingForPayment = false;
+                session()->forget('checkout_cart');
+                $this->redirect(route('order', $transaction->id));
+
+                return;
+            }
+
+            $terminalStatuses = ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', 'TIME_OUT', 'AUTHORIZATION_FAILED', 'TERMINATED'];
+
+            if ($status && in_array($status['transaction_status'], $terminalStatuses, true)) {
+                DB::transaction(function () use ($transaction): void {
+                    $transaction->update(['status' => TransactionStatus::Failed]);
+
+                    Token::where('transaction_id', $transaction->id)
+                        ->where('status', TokenStatus::Reserved)
+                        ->update(['status' => TokenStatus::Available, 'transaction_id' => null]);
+                });
+
+                $this->pollingForPayment = false;
+                $this->paymentError      = 'Your payment was declined or cancelled.';
+                $this->step              = 1;
+
+                return;
+            }
+        }
+
+        if ($this->pollAttempts >= self::MAX_POLL_ATTEMPTS) {
+            $this->pollingForPayment = false;
+            $this->paymentError     = 'Payment confirmation is taking too long. Contact support with reference #'.$this->pendingTransactionId.'.';
+            $this->step             = 1;
+        }
     }
 
     public function finalizeCardPayment(int|string $gatewayTxnId): void
@@ -645,8 +795,99 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                             </div>
                         @endif
 
+                        {{-- PesePay seamless: method selector --}}
+                        @if ($checkoutType === 'seamless' && ! $pesepayReferenceNumber)
+                            <div style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:28px;display:flex;flex-direction:column;gap:20px;">
+                                <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.35);margin:0;font-family:'Azeret Mono',monospace;">Select payment method</p>
+
+                                <div style="display:flex;flex-direction:column;gap:10px;">
+                                    @foreach ($pesepayPaymentMethods as $method)
+                                        <button
+                                            wire:click="$set('pesepayPaymentMethod', '{{ $method['code'] }}')"
+                                            style="width:100%;text-align:left;padding:14px 18px;border-radius:12px;border:2px solid {{ $pesepayPaymentMethod === $method['code'] ? '#DDF247' : 'rgba(255,255,255,0.10)' }};background:{{ $pesepayPaymentMethod === $method['code'] ? 'rgba(221,242,71,0.06)' : 'rgba(255,255,255,0.02)' }};color:{{ $pesepayPaymentMethod === $method['code'] ? '#DDF247' : 'rgba(255,255,255,0.70)' }};font-family:'Manrope',sans-serif;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:border-color .15s;"
+                                        >
+                                            {{ $method['name'] }}
+                                            @if ($pesepayPaymentMethod === $method['code'])
+                                                <svg style="width:16px;height:16px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                                            @endif
+                                        </button>
+                                    @endforeach
+                                </div>
+
+                                @if ($pesepayPaymentMethod === 'PZW211')
+                                    <div>
+                                        <flux:input wire:model="pesepayPhone" label="EcoCash Phone Number" type="tel" placeholder="0777 000 000" />
+                                        @error('pesepayPhone') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
+                                    </div>
+                                @endif
+
+                                @if ($pesepayPaymentMethod === 'CARD')
+                                    <div style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.20);border-radius:10px;padding:12px 16px;">
+                                        <p style="font-size:12px;color:rgba(190,170,255,0.85);font-family:'Azeret Mono',monospace;margin:0;line-height:1.7;">
+                                            A secure PesePay card page opens in a popup — enter your Visa or Mastercard details there. This page updates automatically once payment is confirmed.
+                                        </p>
+                                    </div>
+                                @endif
+
+                                @if ($pesepayPaymentMethod)
+                                    <button
+                                        wire:click="submitPesepayPayment"
+                                        style="width:100%;background:#DDF247;color:#111;font-weight:900;font-size:15px;padding:15px;border-radius:13px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;"
+                                        onmouseenter="this.style.opacity='0.88'" onmouseleave="this.style.opacity='1'"
+                                    >
+                                        <span wire:loading.remove wire:target="submitPesepayPayment" style="display:flex;align-items:center;gap:8px;">
+                                            <svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                            Pay {{ strtoupper(config('pesepay.currency_code', 'USD')) }} {{ number_format($this->cartTotal, 2) }}
+                                        </span>
+                                        <span wire:loading wire:target="submitPesepayPayment" style="display:flex;align-items:center;gap:8px;">
+                                            <svg style="width:17px;height:17px;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+                                            Sending request…
+                                        </span>
+                                    </button>
+                                @endif
+                            </div>
+                        @endif
+
+                        {{-- PesePay seamless: waiting for EcoCash / Innbucks phone confirmation --}}
+                        @if ($checkoutType === 'seamless' && $pesepayReferenceNumber && ! $redirectUrl)
+                            <div wire:poll.5000ms="pollPesepayPayment" style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:32px;display:flex;flex-direction:column;align-items:center;gap:16px;">
+                                <svg style="width:40px;height:40px;color:#DDF247;animation:spin 1.2s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+                                <p style="font-size:15px;font-weight:800;color:#fff;margin:0;">Waiting for payment confirmation</p>
+                                <p style="font-size:12px;color:rgba(255,255,255,0.45);font-family:'Azeret Mono',monospace;margin:0;text-align:center;">
+                                    Check your {{ $pesepayPaymentMethod === 'PZW211' ? 'EcoCash' : 'Innbucks' }} for a payment prompt and approve to complete your order.
+                                </p>
+                                <p style="font-size:11px;color:rgba(255,255,255,0.20);font-family:'Azeret Mono',monospace;margin:0;">
+                                    Ref: {{ $pesepayReferenceNumber }}
+                                </p>
+                            </div>
+                        @endif
+
+                        {{-- PesePay seamless: card payment popup --}}
+                        @if ($checkoutType === 'seamless' && $pesepayReferenceNumber && $redirectUrl)
+                            <div
+                                wire:poll.4000ms="pollPesepayPayment"
+                                x-data="{ popup: null }"
+                                x-init="$nextTick(function () { popup = window.open('{{ addslashes($redirectUrl) }}', 'pesepay_card', 'width=760,height=700,scrollbars=yes,resizable=yes'); })"
+                                style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:32px;display:flex;flex-direction:column;align-items:center;gap:16px;"
+                            >
+                                <svg style="width:40px;height:40px;color:rgba(139,92,246,0.80);animation:spin 1.2s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+                                <p style="font-size:15px;font-weight:800;color:#fff;margin:0;">Complete payment in the secure popup</p>
+                                <p style="font-size:12px;color:rgba(255,255,255,0.45);font-family:'Azeret Mono',monospace;margin:0;text-align:center;">
+                                    Enter your card details in the PesePay window that just opened. This page updates automatically once payment is confirmed.
+                                </p>
+                                <button
+                                    x-on:click="popup = window.open('{{ addslashes($redirectUrl) }}', 'pesepay_card', 'width=760,height=700,scrollbars=yes,resizable=yes')"
+                                    style="font-size:12px;color:rgba(139,92,246,0.70);background:none;border:1px solid rgba(139,92,246,0.25);border-radius:8px;padding:7px 14px;font-family:'Manrope',sans-serif;font-weight:700;cursor:pointer;"
+                                    onmouseenter="this.style.borderColor='rgba(139,92,246,0.55)'" onmouseleave="this.style.borderColor='rgba(139,92,246,0.25)'"
+                                >Reopen payment window ↗</button>
+                                <p style="font-size:11px;color:rgba(255,255,255,0.20);font-family:'Azeret Mono',monospace;margin:0;">
+                                    Ref: {{ $pesepayReferenceNumber }}
+                                </p>
+                            </div>
+                        @endif
+
                         {{-- Generic polling spinner --}}
-                        @if ($pollingForPayment && ! in_array($checkoutType, ['qr', 'popup']))
+                        @if ($pollingForPayment && ! in_array($checkoutType, ['qr', 'popup', 'seamless']))
                             <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px 0;" wire:poll.2500ms="pollPaymentStatus">
                                 <svg style="width:36px;height:36px;color:rgba(139,92,246,0.70);animation:spin 1.2s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
                                 <p style="font-size:13px;color:rgba(255,255,255,0.40);font-family:'Azeret Mono',monospace;margin:0;">Confirming your payment…</p>

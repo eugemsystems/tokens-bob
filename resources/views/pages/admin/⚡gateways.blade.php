@@ -120,6 +120,8 @@ new #[Title('Payment Gateways')] class extends Component
                         Hosted checkout — customers are redirected to a secure payment page.
                     @elseif ($gateway['checkout_type'] === 'whop')
                         Hosted Whop checkout — customers complete payment on whop.com.
+                    @elseif ($gateway['checkout_type'] === 'seamless')
+                        EcoCash &amp; Innbucks — customers approve on their phone, no redirect.
                     @endif
                 </flux:text>
             </flux:card>

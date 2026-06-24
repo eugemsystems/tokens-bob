@@ -9,6 +9,7 @@ use App\Services\Gateways\FlutterwaveGateway;
 use App\Services\Gateways\PayFastGateway;
 use App\Services\Gateways\PaystackGateway;
 use App\Services\Gateways\PeachPaymentsGateway;
+use App\Services\Gateways\PesepayGateway;
 use App\Services\Gateways\SnapScanGateway;
 use App\Services\Gateways\WhopGateway;
 use InvalidArgumentException;
@@ -26,15 +27,17 @@ class GatewayManager
         FlutterwaveGateway $flutterwave,
         PaystackGateway $paystack,
         WhopGateway $whop,
+        PesepayGateway $pesepay,
     ) {
         $this->gateways = [
-            $payfast->getKey()     => $payfast,
-            $snapscan->getKey()    => $snapscan,
-            $dpo->getKey()         => $dpo,
-            $peach->getKey()       => $peach,
+            $payfast->getKey() => $payfast,
+            $snapscan->getKey() => $snapscan,
+            $dpo->getKey() => $dpo,
+            $peach->getKey() => $peach,
             $flutterwave->getKey() => $flutterwave,
-            $paystack->getKey()    => $paystack,
-            $whop->getKey()        => $whop,
+            $paystack->getKey() => $paystack,
+            $whop->getKey() => $whop,
+            $pesepay->getKey() => $pesepay,
         ];
     }
 

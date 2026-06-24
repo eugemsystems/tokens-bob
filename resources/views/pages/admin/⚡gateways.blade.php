@@ -21,12 +21,23 @@ new #[Title('Payment Gateways')] class extends Component
     #[Validate('nullable|string|max:20000')]
     public string $whopEmailPool = '';
 
+    #[Validate('required|numeric|min:0.01')]
+    public string $pesepayExchangeRate = '';
+
     public function mount(): void
     {
         $this->defaultGateway = Setting::get('default_gateway', 'payfast');
         $this->webhookUrl = Setting::get('webhook_url', '');
         $this->whopPrefillEmail = Setting::get('whop_prefill_email', '');
         $this->whopEmailPool = Setting::get('whop_email_pool', '');
+        $this->pesepayExchangeRate = Setting::get('pesepay_exchange_rate', '18.00');
+    }
+
+    public function savePesepayRate(): void
+    {
+        $this->validateOnly('pesepayExchangeRate');
+        Setting::set('pesepay_exchange_rate', $this->pesepayExchangeRate);
+        Flux::toast(variant: 'success', text: 'Exchange rate saved.');
     }
 
     #[Computed]
@@ -156,6 +167,34 @@ new #[Title('Payment Gateways')] class extends Component
                 Active — <span class="font-mono text-zinc-400">{{ $webhookUrl }}</span>
             </div>
         @endif
+    </div>
+
+    <flux:separator />
+
+    {{-- PesePay Settings --}}
+    <div>
+        <flux:heading size="lg">PesePay Settings</flux:heading>
+        <flux:text class="mt-1 text-zinc-400">
+            PesePay only accepts USD. Set the ZAR → USD exchange rate below and all rand prices will be converted automatically before being sent to PesePay.
+        </flux:text>
+
+        <div class="mt-4 flex items-end gap-3">
+            <div class="w-56">
+                <flux:input
+                    wire:model="pesepayExchangeRate"
+                    label="Exchange Rate (1 USD = ? ZAR)"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="18.00"
+                />
+            </div>
+            <flux:button wire:click="savePesepayRate" variant="primary">Save</flux:button>
+        </div>
+
+        <flux:text class="mt-2 text-xs text-zinc-500">
+            Example: if 1 USD = 18.50 ZAR, enter <strong>18.50</strong>. A R{{ number_format((float) $pesepayExchangeRate * 10, 2) }} order will be charged USD 10.00.
+        </flux:text>
     </div>
 
     <flux:separator />

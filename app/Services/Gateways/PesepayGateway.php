@@ -4,6 +4,7 @@ namespace App\Services\Gateways;
 
 use App\Contracts\PaymentGateway;
 use App\Contracts\SeamlessGateway;
+use App\Models\Setting;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -44,7 +45,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
     {
         $body = [
             'amountDetails' => [
-                'amount' => (float) $transaction->amount,
+                'amount' => $this->toUsd((float) $transaction->amount),
                 'currencyCode' => config('pesepay.currency_code', 'USD'),
             ],
             'merchantReference' => 'TXN-'.$transaction->id,
@@ -154,7 +155,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
     {
         $body = [
             'amountDetails' => [
-                'amount' => (float) $transaction->amount,
+                'amount' => $this->toUsd((float) $transaction->amount),
                 'currencyCode' => config('pesepay.currency_code', 'USD'),
             ],
             'merchantReference' => 'TXN-'.$transaction->id,
@@ -225,7 +226,7 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
     {
         $body = [
             'amountDetails' => [
-                'amount' => (float) $transaction->amount,
+                'amount' => $this->toUsd((float) $transaction->amount),
                 'currencyCode' => config('pesepay.currency_code', 'USD'),
             ],
             'merchantReference' => 'TXN-'.$transaction->id,
@@ -298,6 +299,13 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
         $encrypted = openssl_encrypt(json_encode($data), 'AES-256-CBC', $key, 0, $iv);
 
         return $encrypted !== false ? $encrypted : null;
+    }
+
+    private function toUsd(float $zarAmount): float
+    {
+        $rate = (float) Setting::get('pesepay_exchange_rate', '18.00');
+
+        return $rate > 0 ? round($zarAmount / $rate, 2) : $zarAmount;
     }
 
     private function baseUrl(): string

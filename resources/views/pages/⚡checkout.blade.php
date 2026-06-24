@@ -104,6 +104,14 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
     }
 
     #[Computed]
+    public function cartTotalUsd(): float
+    {
+        $rate = (float) Setting::get('pesepay_exchange_rate', '18.00');
+
+        return $rate > 0 ? round($this->cartTotal / $rate, 2) : $this->cartTotal;
+    }
+
+    #[Computed]
     public function cartItemCount(): int
     {
         return (int) array_sum($this->cart);
@@ -889,8 +897,22 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                             @error('pesepayCardNumber') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
                                         </div>
                                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                                            <div>
-                                                <flux:input wire:model="pesepayCardExpiry" label="Expiry (MM/YY)" type="text" placeholder="08/27" maxlength="5" autocomplete="cc-exp" inputmode="numeric" />
+                                            <div x-data="{ expiry: @entangle('pesepayCardExpiry') }">
+                                                <flux:input
+                                                    label="Expiry"
+                                                    type="text"
+                                                    placeholder="MM/YY"
+                                                    maxlength="5"
+                                                    autocomplete="cc-exp"
+                                                    inputmode="numeric"
+                                                    x-bind:value="expiry"
+                                                    x-on:input="
+                                                        let digits = $event.target.value.replace(/\D/g, '').slice(0, 4);
+                                                        let formatted = digits.length > 2 ? digits.slice(0,2) + '/' + digits.slice(2) : digits;
+                                                        expiry = formatted;
+                                                        $event.target.value = formatted;
+                                                    "
+                                                />
                                                 @error('pesepayCardExpiry') <p style="font-size:12px;color:#f87171;margin:4px 0 0;">{{ $message }}</p> @enderror
                                             </div>
                                             <div>
@@ -909,7 +931,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     >
                                         <span wire:loading.remove wire:target="submitPesepayPayment" style="display:flex;align-items:center;gap:8px;">
                                             <svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                            Pay {{ strtoupper(config('pesepay.currency_code', 'USD')) }} {{ number_format($this->cartTotal, 2) }}
+                                            Pay R{{ number_format($this->cartTotal, 2) }} <span style="opacity:0.6;font-size:13px;font-weight:600;">(USD {{ number_format($this->cartTotalUsd, 2) }})</span>
                                         </span>
                                         <span wire:loading wire:target="submitPesepayPayment" style="display:flex;align-items:center;gap:8px;">
                                             <svg style="width:17px;height:17px;animation:spin 1s linear infinite;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>

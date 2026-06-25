@@ -99,6 +99,11 @@ new #[Title('Webhook Logs')] class extends Component
                 :variant="$sourceFilter === 'stripe' ? 'primary' : 'ghost'"
                 size="sm"
             >Stripe</flux:button>
+            <flux:button
+                wire:click="$set('sourceFilter', 'partner')"
+                :variant="$sourceFilter === 'partner' ? 'primary' : 'ghost'"
+                size="sm"
+            >Partner</flux:button>
         </div>
 
         <div class="h-4 w-px bg-zinc-700"></div>
@@ -151,7 +156,7 @@ new #[Title('Webhook Logs')] class extends Component
 
                     <flux:table.cell>
                         <flux:badge
-                            :color="$log->source === 'stripe' ? 'violet' : 'blue'"
+                            :color="match($log->source) { 'stripe' => 'violet', 'partner' => 'green', default => 'blue' }"
                             size="sm"
                         >
                             {{ ucfirst($log->source) }}
@@ -216,7 +221,7 @@ new #[Title('Webhook Logs')] class extends Component
             @php $log = $this->viewingLog; @endphp
             <div class="flex items-center gap-3 mb-1">
                 <flux:heading size="lg">Webhook #{{ $log->id }}</flux:heading>
-                <flux:badge :color="$log->source === 'stripe' ? 'violet' : 'blue'" size="sm">
+                <flux:badge :color="match($log->source) { 'stripe' => 'violet', 'partner' => 'green', default => 'blue' }" size="sm">
                     {{ ucfirst($log->source) }}
                 </flux:badge>
                 <flux:badge
@@ -241,8 +246,13 @@ new #[Title('Webhook Logs')] class extends Component
                         </p>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold text-zinc-500">IP Address</p>
-                        <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $log->ip_address ?? '—' }}</p>
+                        @if ($log->source === 'partner')
+                            <p class="text-xs font-semibold text-zinc-500">Destination URL</p>
+                            <p class="mt-0.5 font-mono text-xs text-zinc-200 break-all">{{ $log->decodedHeaders()['url'] ?? '—' }}</p>
+                        @else
+                            <p class="text-xs font-semibold text-zinc-500">IP Address</p>
+                            <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $log->ip_address ?? '—' }}</p>
+                        @endif
                     </div>
                     <div>
                         <p class="text-xs font-semibold text-zinc-500">Received</p>

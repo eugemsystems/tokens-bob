@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\JobLog;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -10,7 +12,14 @@ new #[Title('Queue Monitor')] class extends Component
 {
     use WithPagination;
 
-    public string $tab = 'pending';
+    #[Url]
+    public string $tab = 'history';
+
+    #[Url]
+    public string $statusFilter = 'all';
+
+    #[Url]
+    public string $jobFilter = 'all';
 
     /** @var array<string, int> */
     public array $counts = [];
@@ -28,8 +37,10 @@ new #[Title('Queue Monitor')] class extends Component
     public function refreshCounts(): void
     {
         $this->counts = [
-            'pending' => DB::table('jobs')->count(),
-            'failed'  => DB::table('failed_jobs')->count(),
+            'pending'   => DB::table('jobs')->count(),
+            'failed'    => DB::table('failed_jobs')->count(),
+            'completed' => JobLog::where('status', 'completed')->count(),
+            'history'   => JobLog::count(),
         ];
     }
 
@@ -40,17 +51,49 @@ new #[Title('Queue Monitor')] class extends Component
         $this->refreshCounts();
     }
 
+    public function updatingStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingJobFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function openDetail(int $id): void
     {
-        if ($this->tab === 'pending') {
+        if ($this->tab === 'history') {
+            $log = JobLog::find($id);
+
+            if (! $log) {
+                return;
+            }
+
+            $this->detail = [
+                'type'        => 'history',
+                'id'          => $log->id,
+                'uuid'        => $log->uuid ?? '—',
+                'name'        => $log->job_name,
+                'queue'       => $log->queue,
+                'status'      => $log->status,
+                'attempt'     => $log->attempt,
+                'props'       => $log->job_data ?? [],
+                'exception'   => $log->exception,
+                'startedAt'   => $log->started_at?->format('Y-m-d H:i:s'),
+                'completedAt' => $log->completed_at?->format('Y-m-d H:i:s'),
+                'failedAt'    => $log->failed_at?->format('Y-m-d H:i:s'),
+                'createdAt'   => $log->created_at->format('Y-m-d H:i:s'),
+            ];
+        } elseif ($this->tab === 'pending') {
             $job = DB::table('jobs')->find($id);
 
             if (! $job) {
                 return;
             }
 
-            $payload  = json_decode($job->payload, true);
-            $props    = $this->decodeCommand($payload['data']['command'] ?? '');
+            $payload = json_decode($job->payload, true);
+            $props = $this->decodeCommand($payload['data']['command'] ?? '');
             $isRunning = ! is_null($job->reserved_at);
 
             $this->detail = [
@@ -78,23 +121,23 @@ new #[Title('Queue Monitor')] class extends Component
             }
 
             $payload = json_decode($job->payload, true);
-            $props   = $this->decodeCommand($payload['data']['command'] ?? '');
+            $props = $this->decodeCommand($payload['data']['command'] ?? '');
 
             $this->detail = [
-                'type'        => 'failed',
-                'id'          => $job->id,
-                'uuid'        => $job->uuid,
-                'name'        => $payload['displayName'] ?? ($payload['data']['commandName'] ?? 'Unknown'),
-                'queue'       => $job->queue,
-                'connection'  => $job->connection,
-                'attempts'    => $payload['maxTries'] ?? '—',
-                'maxTries'    => $payload['maxTries'] ?? '—',
-                'backoff'     => $payload['backoff'] ?? '—',
-                'timeout'     => $payload['timeout'] ?? '—',
-                'failedAt'    => Carbon::parse($job->failed_at)->format('Y-m-d H:i:s'),
-                'props'       => $props,
-                'exception'   => $job->exception,
-                'rawPayload'  => json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                'type'       => 'failed',
+                'id'         => $job->id,
+                'uuid'       => $job->uuid,
+                'name'       => $payload['displayName'] ?? ($payload['data']['commandName'] ?? 'Unknown'),
+                'queue'      => $job->queue,
+                'connection' => $job->connection,
+                'attempts'   => $payload['maxTries'] ?? '—',
+                'maxTries'   => $payload['maxTries'] ?? '—',
+                'backoff'    => $payload['backoff'] ?? '—',
+                'timeout'    => $payload['timeout'] ?? '—',
+                'failedAt'   => Carbon::parse($job->failed_at)->format('Y-m-d H:i:s'),
+                'props'      => $props,
+                'exception'  => $job->exception,
+                'rawPayload' => json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
             ];
         }
 
@@ -150,8 +193,8 @@ new #[Title('Queue Monitor')] class extends Component
                 return [];
             }
 
-            $props  = [];
-            $ref    = new ReflectionClass($job);
+            $props = [];
+            $ref = new ReflectionClass($job);
 
             foreach ($ref->getProperties(ReflectionProperty::IS_PUBLIC) as $prop) {
                 $value = $prop->getValue($job);
@@ -175,7 +218,7 @@ new #[Title('Queue Monitor')] class extends Component
     </div>
 
     {{-- Stat cards --}}
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-4 gap-4">
         <flux:card class="flex items-center gap-4 p-5">
             <div class="flex size-10 items-center justify-center rounded-xl bg-blue-500/10">
                 <flux:icon.clock class="size-5 text-blue-400" />
@@ -191,22 +234,142 @@ new #[Title('Queue Monitor')] class extends Component
             </div>
             <div>
                 <p class="text-2xl font-bold text-zinc-100">{{ $counts['failed'] ?? 0 }}</p>
-                <p class="text-xs text-zinc-500">Failed</p>
+                <p class="text-xs text-zinc-500">Failed (queue)</p>
+            </div>
+        </flux:card>
+        <flux:card class="flex items-center gap-4 p-5">
+            <div class="flex size-10 items-center justify-center rounded-xl bg-green-500/10">
+                <flux:icon.check-circle class="size-5 text-green-400" />
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-zinc-100">{{ $counts['completed'] ?? 0 }}</p>
+                <p class="text-xs text-zinc-500">Completed (logged)</p>
+            </div>
+        </flux:card>
+        <flux:card class="flex items-center gap-4 p-5">
+            <div class="flex size-10 items-center justify-center rounded-xl bg-zinc-500/10">
+                <flux:icon.list-bullet class="size-5 text-zinc-400" />
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-zinc-100">{{ $counts['history'] ?? 0 }}</p>
+                <p class="text-xs text-zinc-500">Total logged</p>
             </div>
         </flux:card>
     </div>
 
     {{-- Tabs --}}
     <div class="flex gap-2 border-b border-zinc-700">
+        <button wire:click="setTab('history')"
+            class="border-b-2 px-4 pb-3 text-sm font-semibold transition-colors {{ $tab === 'history' ? 'border-violet-500 text-violet-400' : 'border-transparent text-zinc-500 hover:text-zinc-300' }}">
+            History
+            <span class="ml-1.5 rounded-full bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300">{{ $counts['history'] ?? 0 }}</span>
+        </button>
         <button wire:click="setTab('pending')"
-            class="border-b-2 px-4 pb-3 text-sm font-semibold transition-colors {{ $tab === 'pending' ? 'border-violet-500 text-violet-400' : 'border-transparent text-zinc-500 hover:text-zinc-300' }}">
+            class="border-b-2 px-4 pb-3 text-sm font-semibold transition-colors {{ $tab === 'pending' ? 'border-blue-500 text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-300' }}">
             Pending / Running
+            <span class="ml-1.5 rounded-full bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300">{{ $counts['pending'] ?? 0 }}</span>
         </button>
         <button wire:click="setTab('failed')"
             class="border-b-2 px-4 pb-3 text-sm font-semibold transition-colors {{ $tab === 'failed' ? 'border-red-500 text-red-400' : 'border-transparent text-zinc-500 hover:text-zinc-300' }}">
             Failed
+            <span class="ml-1.5 rounded-full bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300">{{ $counts['failed'] ?? 0 }}</span>
         </button>
     </div>
+
+    {{-- ── HISTORY TAB ── --}}
+    @if ($tab === 'history')
+        <div class="flex flex-wrap items-center gap-3">
+            <flux:select wire:model.live="statusFilter" class="w-40">
+                <flux:select.option value="all">All statuses</flux:select.option>
+                <flux:select.option value="completed">Completed</flux:select.option>
+                <flux:select.option value="failed">Failed</flux:select.option>
+                <flux:select.option value="running">Running</flux:select.option>
+            </flux:select>
+
+            <flux:select wire:model.live="jobFilter" class="w-56">
+                <flux:select.option value="all">All job types</flux:select.option>
+                @foreach (JobLog::select('job_name')->distinct()->orderBy('job_name')->pluck('job_name') as $name)
+                    <flux:select.option value="{{ $name }}">{{ class_basename($name) }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        </div>
+
+        @php
+            $history = JobLog::query()
+                ->when($statusFilter !== 'all', fn ($q) => $q->where('status', $statusFilter))
+                ->when($jobFilter !== 'all', fn ($q) => $q->where('job_name', $jobFilter))
+                ->latest()
+                ->paginate(25);
+        @endphp
+
+        @if ($history->isEmpty())
+            <div class="flex flex-col items-center justify-center py-16 text-zinc-500">
+                <flux:icon.clock class="mb-3 size-10 text-zinc-600" />
+                <p class="font-medium">No job history yet</p>
+                <p class="mt-1 text-sm">Logs appear here as soon as jobs start running.</p>
+            </div>
+        @else
+            <flux:table :paginate="$history" pagination:scroll-to>
+                <flux:table.columns>
+                    <flux:table.column>Job</flux:table.column>
+                    <flux:table.column>Queue</flux:table.column>
+                    <flux:table.column align="center">Status</flux:table.column>
+                    <flux:table.column align="center">Attempt</flux:table.column>
+                    <flux:table.column>Started</flux:table.column>
+                    <flux:table.column>Duration</flux:table.column>
+                    <flux:table.column></flux:table.column>
+                </flux:table.columns>
+                <flux:table.rows>
+                    @foreach ($history as $log)
+                        @php
+                            $duration = null;
+                            if ($log->started_at && ($log->completed_at || $log->failed_at)) {
+                                $end = $log->completed_at ?? $log->failed_at;
+                                $duration = $log->started_at->diffInMilliseconds($end);
+                            }
+                        @endphp
+                        <flux:table.row :key="$log->id">
+                            <flux:table.cell>
+                                <p class="font-medium text-zinc-100">{{ $log->displayName() }}</p>
+                                <p class="mt-0.5 font-mono text-xs text-zinc-500">{{ Str::limit($log->uuid ?? '', 20) }}</p>
+                            </flux:table.cell>
+                            <flux:table.cell>
+                                <flux:badge color="zinc" size="sm">{{ $log->queue }}</flux:badge>
+                            </flux:table.cell>
+                            <flux:table.cell align="center">
+                                <flux:badge
+                                    size="sm"
+                                    :color="match($log->status) { 'completed' => 'green', 'failed' => 'red', default => 'blue' }"
+                                >
+                                    {{ ucfirst($log->status) }}
+                                </flux:badge>
+                            </flux:table.cell>
+                            <flux:table.cell align="center">
+                                <span class="text-xs text-zinc-400">{{ $log->attempt }}</span>
+                            </flux:table.cell>
+                            <flux:table.cell>
+                                <span class="text-xs text-zinc-400">
+                                    {{ $log->started_at?->diffForHumans() ?? $log->created_at->diffForHumans() }}
+                                </span>
+                            </flux:table.cell>
+                            <flux:table.cell>
+                                @if ($duration !== null)
+                                    <span class="font-mono text-xs {{ $duration > 5000 ? 'text-yellow-400' : 'text-zinc-400' }}">
+                                        {{ $duration >= 1000 ? round($duration / 1000, 1).'s' : $duration.'ms' }}
+                                    </span>
+                                @else
+                                    <span class="text-xs text-zinc-600">—</span>
+                                @endif
+                            </flux:table.cell>
+                            <flux:table.cell align="end">
+                                <flux:button wire:click="openDetail({{ $log->id }})" variant="ghost" size="sm" icon="eye" />
+                            </flux:table.cell>
+                        </flux:table.row>
+                    @endforeach
+                </flux:table.rows>
+            </flux:table>
+        @endif
+    @endif
 
     {{-- ── PENDING JOBS ── --}}
     @if ($tab === 'pending')
@@ -340,7 +503,7 @@ new #[Title('Queue Monitor')] class extends Component
         @endif
     @endif
 
-    {{-- ── DETAIL MODAL ── --}}
+    {{-- ── DETAIL FLYOUT ── --}}
     <flux:modal wire:model="showDetail" flyout position="right" class="md:w-[48rem]">
         @if (! empty($detail))
             <div class="space-y-5">
@@ -350,13 +513,24 @@ new #[Title('Queue Monitor')] class extends Component
                         <flux:heading size="lg">{{ class_basename($detail['name']) }}</flux:heading>
                         <p class="mt-1 font-mono text-xs text-zinc-500">{{ $detail['name'] }}</p>
                     </div>
-                    @if ($detail['type'] === 'failed')
-                        <flux:badge color="red">Failed</flux:badge>
-                    @elseif (($detail['status'] ?? '') === 'Running')
-                        <flux:badge color="blue">Running</flux:badge>
-                    @else
-                        <flux:badge color="green">Waiting</flux:badge>
-                    @endif
+                    @php
+                        $statusVal = $detail['status'] ?? '';
+                        $badgeColor = match(true) {
+                            $detail['type'] === 'failed'       => 'red',
+                            $statusVal === 'failed'            => 'red',
+                            $statusVal === 'completed'         => 'green',
+                            in_array($statusVal, ['Running', 'running']) => 'blue',
+                            default                            => 'green',
+                        };
+                        $badgeLabel = match(true) {
+                            $detail['type'] === 'failed'       => 'Failed',
+                            $statusVal === 'failed'            => 'Failed',
+                            $statusVal === 'completed'         => 'Completed',
+                            in_array($statusVal, ['Running', 'running']) => 'Running',
+                            default                            => ucfirst($statusVal),
+                        };
+                    @endphp
+                    <flux:badge :color="$badgeColor">{{ $badgeLabel }}</flux:badge>
                 </div>
 
                 {{-- Identity --}}
@@ -371,35 +545,6 @@ new #[Title('Queue Monitor')] class extends Component
                             <p class="text-zinc-500">Queue</p>
                             <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['queue'] }}</p>
                         </div>
-                        @if ($detail['type'] === 'failed' && isset($detail['connection']))
-                            <div>
-                                <p class="text-zinc-500">Connection</p>
-                                <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['connection'] }}</p>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-
-                {{-- Execution config --}}
-                <div class="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Execution</p>
-                    <div class="grid grid-cols-3 gap-x-6 gap-y-2 text-sm">
-                        <div>
-                            <p class="text-zinc-500">Attempts</p>
-                            <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['attempts'] ?? 0 }}</p>
-                        </div>
-                        <div>
-                            <p class="text-zinc-500">Max Tries</p>
-                            <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['maxTries'] ?? '∞' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-zinc-500">Backoff</p>
-                            <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['backoff'] !== '—' ? $detail['backoff'].'s' : '—' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-zinc-500">Timeout</p>
-                            <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['timeout'] !== '—' ? $detail['timeout'].'s' : '—' }}</p>
-                        </div>
                     </div>
                 </div>
 
@@ -407,7 +552,24 @@ new #[Title('Queue Monitor')] class extends Component
                 <div class="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-2">
                     <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Timestamps</p>
                     <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                        @if ($detail['type'] === 'pending')
+                        @if ($detail['type'] === 'history')
+                            <div>
+                                <p class="text-zinc-500">Started</p>
+                                <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['startedAt'] ?? '—' }}</p>
+                            </div>
+                            @if ($detail['completedAt'])
+                                <div>
+                                    <p class="text-zinc-500">Completed</p>
+                                    <p class="mt-0.5 font-mono text-xs text-green-400">{{ $detail['completedAt'] }}</p>
+                                </div>
+                            @endif
+                            @if ($detail['failedAt'])
+                                <div>
+                                    <p class="text-zinc-500">Failed At</p>
+                                    <p class="mt-0.5 font-mono text-xs text-red-400">{{ $detail['failedAt'] }}</p>
+                                </div>
+                            @endif
+                        @elseif ($detail['type'] === 'pending')
                             <div>
                                 <p class="text-zinc-500">Queued At</p>
                                 <p class="mt-0.5 font-mono text-xs text-zinc-200">{{ $detail['createdAt'] }}</p>
@@ -446,8 +608,8 @@ new #[Title('Queue Monitor')] class extends Component
                     </div>
                 @endif
 
-                {{-- Exception (failed only) --}}
-                @if ($detail['type'] === 'failed' && ! empty($detail['exception']))
+                {{-- Exception --}}
+                @if (! empty($detail['exception']))
                     <div x-data="{ expanded: false }" class="rounded-lg border border-red-800/50 bg-red-950/30 p-4 space-y-2">
                         <div class="flex items-center justify-between">
                             <p class="text-xs font-semibold uppercase tracking-wider text-red-400">Exception</p>
@@ -462,7 +624,7 @@ new #[Title('Queue Monitor')] class extends Component
                     </div>
                 @endif
 
-                {{-- Actions for failed --}}
+                {{-- Retry / delete for queue-failed jobs --}}
                 @if ($detail['type'] === 'failed')
                     <div class="flex gap-3 pt-1">
                         <flux:button wire:click="retryJob({{ $detail['id'] }})" variant="primary" icon="arrow-path" class="flex-1">

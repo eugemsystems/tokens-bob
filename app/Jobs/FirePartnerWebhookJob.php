@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Transaction;
+use App\Models\WebhookLog;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
@@ -45,12 +46,23 @@ class FirePartnerWebhookJob implements ShouldQueue
             'paid_at' => $transaction->updated_at?->toIso8601String(),
         ];
 
-        Http::post($this->url, $payload);
+        $response = Http::post($this->url, $payload);
 
         Log::info('FirePartnerWebhookJob: delivered', [
             'url' => $this->url,
             'transaction_id' => $this->transactionId,
             'reference' => $partnerData['reference'] ?? null,
+            'http_status' => $response->status(),
+        ]);
+
+        WebhookLog::create([
+            'source' => 'partner',
+            'event_type' => 'activation',
+            'payload' => json_encode($payload),
+            'headers' => json_encode(['url' => $this->url]),
+            'status' => $response->successful() ? 'processed' : 'failed',
+            'response_code' => $response->status(),
+            'ip_address' => null,
         ]);
     }
 
@@ -60,6 +72,16 @@ class FirePartnerWebhookJob implements ShouldQueue
             'url' => $this->url,
             'transaction_id' => $this->transactionId,
             'error' => $e->getMessage(),
+        ]);
+
+        WebhookLog::create([
+            'source' => 'partner',
+            'event_type' => 'activation',
+            'payload' => json_encode(['transaction_id' => $this->transactionId]),
+            'headers' => json_encode(['url' => $this->url]),
+            'status' => 'failed',
+            'response_code' => null,
+            'ip_address' => null,
         ]);
     }
 

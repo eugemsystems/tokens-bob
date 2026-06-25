@@ -139,6 +139,7 @@ new #[Title('Transactions')] class extends Component
 
                 <flux:table.column>Status</flux:table.column>
                 <flux:table.column>Payment ID</flux:table.column>
+                <flux:table.column>Gateway Ref</flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
@@ -181,10 +182,16 @@ new #[Title('Transactions')] class extends Component
                                 {{ $tx->pf_payment_id ? Str::limit($tx->pf_payment_id, 16) : '—' }}
                             </span>
                         </flux:table.cell>
+
+                        <flux:table.cell>
+                            <span class="font-mono text-xs text-zinc-500">
+                                {{ $tx->gateway_payment_id ?? '—' }}
+                            </span>
+                        </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="6" class="py-12 text-center text-zinc-500">
+                        <flux:table.cell colspan="7" class="py-12 text-center text-zinc-500">
                             @if ($search || $statusFilter !== 'all')
                                 No transactions match your filters.
                             @else

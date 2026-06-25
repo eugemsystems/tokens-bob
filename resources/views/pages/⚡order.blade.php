@@ -191,7 +191,7 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
             <div style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;">
                 <div>
                     <p style="font-size:11px;color:rgba(255,255,255,0.38);margin:0 0 3px;text-transform:uppercase;letter-spacing:2px;font-family:'Azeret Mono',monospace;">Amount paid</p>
-                    <p style="font-size:22px;font-weight:900;color:#fff;margin:0;">R{{ number_format($amount, 2) }}</p>
+                    <p style="font-size:22px;font-weight:900;color:#fff;margin:0;">R{{ fmt_price($amount) }}</p>
                 </div>
                 <span style="font-size:11px;color:rgba(255,255,255,0.38);font-family:'Azeret Mono',monospace;">Ref #{{ $transactionId }}</span>
             </div>
@@ -259,7 +259,7 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
             <div style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;">
                 <div>
                     <p style="font-size:11px;color:rgba(255,255,255,0.38);margin:0 0 3px;text-transform:uppercase;letter-spacing:2px;font-family:'Azeret Mono',monospace;">Amount paid</p>
-                    <p style="font-size:22px;font-weight:900;color:#fff;margin:0;">R{{ number_format($amount, 2) }}</p>
+                    <p style="font-size:22px;font-weight:900;color:#fff;margin:0;">R{{ fmt_price($amount) }}</p>
                 </div>
                 <a href="{{ route('shop') }}" wire:navigate style="background:#DDF247;color:#111;font-weight:800;font-size:13px;padding:12px 22px;border-radius:12px;text-decoration:none;font-family:'Manrope',sans-serif;white-space:nowrap;">
                     Shop More

@@ -30,7 +30,7 @@
                                         <table width="100%" cellpadding="0" cellspacing="0">
                                             <tr>
                                                 <td style="font-size:13px;color:#4ade80;font-weight:700;">
-                                                    &#10003; &nbsp;Payment confirmed &mdash; R{{ number_format($transaction->amount, 2) }}
+                                                    &#10003; &nbsp;Payment confirmed &mdash; R{{ fmt_price($transaction->amount) }}
                                                 </td>
                                                 <td align="right" style="font-size:12px;color:#22c55e;">
                                                     Secure Payment

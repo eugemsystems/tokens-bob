@@ -120,19 +120,19 @@ new #[Title('Analytics')] class extends Component
     <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <flux:card class="space-y-1 p-5">
             <flux:text class="text-sm text-zinc-500">Total Revenue</flux:text>
-            <p class="text-2xl font-bold">R{{ number_format($this->totalRevenue, 2) }}</p>
+            <p class="text-2xl font-bold">R{{ fmt_price($this->totalRevenue) }}</p>
             <flux:text class="text-xs text-zinc-500">All time completed payments</flux:text>
         </flux:card>
 
         <flux:card class="space-y-1 p-5">
             <flux:text class="text-sm text-zinc-500">This Month</flux:text>
-            <p class="text-2xl font-bold">R{{ number_format($this->thisMonthRevenue, 2) }}</p>
+            <p class="text-2xl font-bold">R{{ fmt_price($this->thisMonthRevenue) }}</p>
             <flux:text class="text-xs text-zinc-500">{{ now()->format('F Y') }}</flux:text>
         </flux:card>
 
         <flux:card class="space-y-1 p-5">
             <flux:text class="text-sm text-zinc-500">Today</flux:text>
-            <p class="text-2xl font-bold">R{{ number_format($this->todayRevenue, 2) }}</p>
+            <p class="text-2xl font-bold">R{{ fmt_price($this->todayRevenue) }}</p>
             <flux:text class="text-xs text-zinc-500">{{ now()->format('d M Y') }}</flux:text>
         </flux:card>
 
@@ -242,7 +242,7 @@ new #[Title('Analytics')] class extends Component
                             <div class="flex items-center justify-between text-sm">
                                 <span class="font-medium">{{ $row->name }}</span>
                                 <span class="text-zinc-500">
-                                    R{{ number_format($row->revenue, 2) }}
+                                    R{{ fmt_price($row->revenue) }}
                                     <span class="text-xs">({{ $row->tokens_sold }} sold)</span>
                                 </span>
                             </div>
@@ -277,7 +277,7 @@ new #[Title('Analytics')] class extends Component
                                 <p class="text-xs text-zinc-500">{{ $tx->created_at->diffForHumans() }}</p>
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
-                                <span class="text-sm font-medium">R{{ number_format($tx->amount, 2) }}</span>
+                                <span class="text-sm font-medium">R{{ fmt_price($tx->amount) }}</span>
                                 <flux:badge
                                     size="sm"
                                     :color="match($tx->status->value) {

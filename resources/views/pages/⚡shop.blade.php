@@ -611,7 +611,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
 
                                     {{-- Price --}}
                                     <div style="display:flex;align-items:center;justify-content:flex-end;">
-                                        <span style="font-size:20px;font-weight:900;color:#fff;line-height:1;">R{{ number_format($category->price, 2) }}</span>
+                                        <span style="font-size:20px;font-weight:900;color:#fff;line-height:1;">R{{ fmt_price($category->price) }}</span>
                                     </div>
 
                                     {{-- Cart controls --}}
@@ -675,7 +675,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                                             <p style="font-size:13px;font-weight:700;color:#fff;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $cat->name }}</p>
                                             <p style="font-size:11px;color:rgba(255,255,255,0.38);margin:0;font-family:'Azeret Mono',monospace;">× {{ $qty }}</p>
                                         </div>
-                                        <span style="font-size:13px;font-weight:800;color:#fff;white-space:nowrap;">R{{ number_format($cat->price * $qty, 2) }}</span>
+                                        <span style="font-size:13px;font-weight:800;color:#fff;white-space:nowrap;">R{{ fmt_price($cat->price * $qty) }}</span>
                                     </div>
                                 @endif
                             @endforeach
@@ -683,7 +683,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                             {{-- Total --}}
                             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 0 4px;">
                                 <span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:2px;">Total</span>
-                                <span style="font-size:22px;font-weight:900;color:#DDF247;">R{{ number_format($this->cartTotal, 2) }}</span>
+                                <span style="font-size:22px;font-weight:900;color:#DDF247;">R{{ fmt_price($this->cartTotal) }}</span>
                             </div>
 
                             <button wire:click="startCheckout" class="btn-primary" style="width:100%;margin-top:14px;padding:14px;font-size:14px;justify-content:center;">
@@ -692,7 +692,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                             </button>
 
                             <p style="text-align:center;font-size:11px;color:rgba(255,255,255,0.22);margin-top:10px;font-family:'Azeret Mono',monospace;">
-                                One secure payment of R{{ number_format($this->cartTotal, 2) }}
+                                One secure payment of R{{ fmt_price($this->cartTotal) }}
                             </p>
                         @else
                             <div style="padding:32px 0;text-align:center;">
@@ -739,7 +739,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                 @if ($step === 1)
                     <flux:text class="mt-1">
                         {{ $this->cartItemCount }} {{ $this->cartItemCount === 1 ? 'token' : 'tokens' }}
-                        — total <strong>R{{ number_format($this->cartTotal, 2) }}</strong>
+                        — total <strong>R{{ fmt_price($this->cartTotal) }}</strong>
                     </flux:text>
                     <div class="mt-4 flex items-center gap-2">
                         <div @class(['h-1.5 flex-1 rounded-full', 'bg-violet-500'])></div>
@@ -747,7 +747,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                     </div>
                 @elseif ($step === 2)
                     <flux:text class="mt-1">
-                        Total: <strong>R{{ number_format($this->cartTotal, 2) }}</strong>
+                        Total: <strong>R{{ fmt_price($this->cartTotal) }}</strong>
                     </flux:text>
                     <div class="mt-4 flex items-center gap-2">
                         <div @class(['h-1.5 flex-1 rounded-full', 'bg-violet-500'])></div>
@@ -786,13 +786,13 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                             @if ($qty > 0)
                                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;">
                                     <span style="color:rgba(255,255,255,0.65);font-weight:600;">{{ $cat->name }} <span style="color:rgba(255,255,255,0.32);font-weight:400;">×{{ $qty }}</span></span>
-                                    <span style="color:#fff;font-weight:700;">R{{ number_format($cat->price * $qty, 2) }}</span>
+                                    <span style="color:#fff;font-weight:700;">R{{ fmt_price($cat->price * $qty) }}</span>
                                 </div>
                             @endif
                         @endforeach
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;">
                             <span style="font-size:14px;font-weight:800;color:#fff;">Total</span>
-                            <span style="font-size:18px;font-weight:900;color:#DDF247;">R{{ number_format($this->cartTotal, 2) }}</span>
+                            <span style="font-size:18px;font-weight:900;color:#DDF247;">R{{ fmt_price($this->cartTotal) }}</span>
                         </div>
                     </div>
 
@@ -822,13 +822,13 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                             @if ($qty > 0)
                                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;">
                                     <span style="color:rgba(255,255,255,0.65);font-weight:600;">{{ $cat->name }} <span style="color:rgba(255,255,255,0.32);font-weight:400;">×{{ $qty }}</span></span>
-                                    <span style="color:#fff;font-weight:700;">R{{ number_format($cat->price * $qty, 2) }}</span>
+                                    <span style="color:#fff;font-weight:700;">R{{ fmt_price($cat->price * $qty) }}</span>
                                 </div>
                             @endif
                         @endforeach
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;">
                             <span style="font-size:14px;font-weight:800;color:#fff;">Total</span>
-                            <span style="font-size:18px;font-weight:900;color:#DDF247;">R{{ number_format($this->cartTotal, 2) }}</span>
+                            <span style="font-size:18px;font-weight:900;color:#DDF247;">R{{ fmt_price($this->cartTotal) }}</span>
                         </div>
                     </div>
 
@@ -863,7 +863,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                             >
                                 <span x-show="!processing" class="flex items-center justify-center gap-2">
                                     <flux:icon.lock-closed class="size-4" />
-                                    Pay R{{ number_format($this->cartTotal, 2) }}
+                                    Pay R{{ fmt_price($this->cartTotal) }}
                                 </span>
                                 <span x-show="processing" class="flex items-center justify-center gap-2">
                                     <flux:icon.loading class="size-4 animate-spin" />
@@ -970,7 +970,7 @@ new #[Title('Shop All Tokens')] #[Layout('layouts.public')] class extends Compon
                                 <flux:button type="submit" variant="primary" class="mt-1 w-full bg-violet-600 hover:bg-violet-500">
                                     <span wire:loading.remove wire:target="submitCardPayment" class="flex items-center justify-center gap-2">
                                         <flux:icon.lock-closed class="size-4" />
-                                        Pay R{{ number_format($this->cartTotal, 2) }}
+                                        Pay R{{ fmt_price($this->cartTotal) }}
                                     </span>
                                     <span wire:loading wire:target="submitCardPayment" class="flex items-center justify-center gap-2">
                                         <flux:icon.loading class="size-4 animate-spin" />

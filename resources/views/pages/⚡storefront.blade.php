@@ -449,7 +449,7 @@ new #[Title('Token Store')] #[Layout('layouts.public')] class extends Component
                             </div>
 
                             <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:22px;display:flex;align-items:center;justify-content:space-between;">
-                                <span style="font-size:30px;font-weight:800;color:#fff;font-family:'Manrope',sans-serif;">R{{ number_format($category->price, 2) }}</span>
+                                <span style="font-size:30px;font-weight:800;color:#fff;font-family:'Manrope',sans-serif;">R{{ fmt_price($category->price) }}</span>
                                 @if ($isAvailable)
                                     <a href="{{ route('shop', ['add' => $category->id]) }}" wire:navigate class="btn-primary" style="padding:12px 24px;font-size:14px;">Buy Now</a>
                                 @else
@@ -648,7 +648,7 @@ new #[Title('Token Store')] #[Layout('layouts.public')] class extends Component
                 @if ($this->selectedCategory && $step < 3)
                     <flux:text class="mt-1">
                         {{ $this->selectedCategory->name }} —
-                        <strong>R{{ number_format($this->selectedCategory->price, 2) }}</strong>
+                        <strong>R{{ fmt_price($this->selectedCategory->price) }}</strong>
                     </flux:text>
                 @endif
 
@@ -719,7 +719,7 @@ new #[Title('Token Store')] #[Layout('layouts.public')] class extends Component
                         <div class="flex items-center justify-between border-t border-zinc-700 pt-3">
                             <flux:heading size="sm">Total</flux:heading>
                             <span class="text-xl font-bold text-violet-400">
-                                R{{ number_format($this->selectedCategory?->price ?? 0, 2) }}
+                                R{{ fmt_price($this->selectedCategory?->price ?? 0) }}
                             </span>
                         </div>
                     </div>
@@ -745,7 +745,7 @@ new #[Title('Token Store')] #[Layout('layouts.public')] class extends Component
                             >
                                 <span x-show="! processing" class="flex items-center justify-center gap-2">
                                     <flux:icon.lock-closed class="size-4" />
-                                    Pay Securely — R{{ number_format($this->selectedCategory?->price ?? 0, 2) }}
+                                    Pay Securely — R{{ fmt_price($this->selectedCategory?->price ?? 0) }}
                                 </span>
                                 <span x-show="processing" class="flex items-center justify-center gap-2">
                                     <flux:icon.loading class="size-4 animate-spin" />

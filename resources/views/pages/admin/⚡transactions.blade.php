@@ -12,6 +12,7 @@ use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 new #[Title('Transactions')] class extends Component
 {
@@ -31,6 +32,13 @@ new #[Title('Transactions')] class extends Component
 
     public ?int $reprocessingId = null;
     public bool $showReprocessModal = false;
+
+    // Export
+    public bool $showExportModal = false;
+    public string $exportDateFrom = '';
+    public string $exportDateTo = '';
+    public string $exportStatus = 'all';
+    public bool $exportDistinct = false;
 
     public function updatingSearch(): void
     {
@@ -112,6 +120,44 @@ new #[Title('Transactions')] class extends Component
             ->paginate(20);
     }
 
+    public function exportCsv(): StreamedResponse
+    {
+        $query = Transaction::query()
+            ->when($this->exportStatus !== 'all', fn ($q) => $q->where('status', $this->exportStatus))
+            ->when($this->exportDateFrom, fn ($q) => $q->whereDate('created_at', '>=', $this->exportDateFrom))
+            ->when($this->exportDateTo, fn ($q) => $q->whereDate('created_at', '<=', $this->exportDateTo))
+            ->orderBy('created_at', 'desc');
+
+        if ($this->exportDistinct) {
+            $query->select(DB::raw('MIN(id) as id, customer_email, MIN(customer_phone) as customer_phone, SUM(amount) as amount, status, MIN(created_at) as created_at, MIN(gateway) as gateway, MIN(gateway_payment_id) as gateway_payment_id'))
+                ->groupBy('customer_email', 'status');
+        }
+
+        $rows = $query->get();
+
+        $filename = 'transactions-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($rows): void {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, ['Date', 'Email', 'Phone', 'Amount (R)', 'Status', 'Gateway', 'Gateway Ref']);
+
+            foreach ($rows as $row) {
+                fputcsv($handle, [
+                    $row->created_at instanceof \Carbon\Carbon ? $row->created_at->format('Y-m-d H:i:s') : $row->created_at,
+                    $row->customer_email,
+                    $row->customer_phone ?? '',
+                    is_numeric($row->amount) ? number_format((float) $row->amount, 2, '.', '') : $row->amount,
+                    $row->status instanceof TransactionStatus ? $row->status->value : $row->status,
+                    $row->gateway ?? '',
+                    $row->gateway_payment_id ?? '',
+                ]);
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
     #[Computed]
     public function statusCounts(): array
     {
@@ -123,7 +169,10 @@ new #[Title('Transactions')] class extends Component
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6 p-6">
-    <flux:heading size="xl">Transactions</flux:heading>
+    <div class="flex items-center justify-between">
+        <flux:heading size="xl">Transactions</flux:heading>
+        <flux:button wire:click="$set('showExportModal', true)" variant="ghost" icon="arrow-down-tray" size="sm">Export CSV</flux:button>
+    </div>
 
     {{-- ── Summary Badges ── --}}
     <div class="mt-4 flex flex-wrap gap-2">
@@ -215,7 +264,7 @@ new #[Title('Transactions')] class extends Component
                         </flux:table.cell>
 
                         <flux:table.cell align="end" variant="strong">
-                            R{{ number_format($tx->amount, 2) }}
+                            R{{ fmt_price($tx->amount) }}
                         </flux:table.cell>
 
                         <flux:table.cell>
@@ -292,7 +341,7 @@ new #[Title('Transactions')] class extends Component
                 </div>
                 <div class="flex justify-between">
                     <span class="text-zinc-500">Amount</span>
-                    <span class="font-semibold text-white">R{{ number_format($tx->amount, 2) }}</span>
+                    <span class="font-semibold text-white">R{{ fmt_price($tx->amount) }}</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-zinc-500">Type</span>
@@ -314,5 +363,46 @@ new #[Title('Transactions')] class extends Component
                 </flux:button>
             </div>
         @endif
+    </flux:modal>
+
+    {{-- ── Export Modal ── --}}
+    <flux:modal wire:model="showExportModal" class="max-w-md">
+        <flux:heading size="lg">Export Transactions</flux:heading>
+        <flux:text class="mt-1 text-zinc-400">Download a CSV filtered by date range and status.</flux:text>
+
+        <div class="mt-5 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <flux:field>
+                    <flux:label>From date</flux:label>
+                    <flux:input type="date" wire:model="exportDateFrom" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>To date</flux:label>
+                    <flux:input type="date" wire:model="exportDateTo" />
+                </flux:field>
+            </div>
+
+            <flux:field>
+                <flux:label>Status</flux:label>
+                <flux:select wire:model="exportStatus">
+                    <flux:select.option value="all">All statuses</flux:select.option>
+                    <flux:select.option value="completed">Completed</flux:select.option>
+                    <flux:select.option value="pending">Pending</flux:select.option>
+                    <flux:select.option value="failed">Failed</flux:select.option>
+                </flux:select>
+            </flux:field>
+
+            <flux:field variant="inline">
+                <flux:checkbox wire:model="exportDistinct" id="exportDistinct" />
+                <flux:label for="exportDistinct">Distinct emails only (one row per unique email)</flux:label>
+            </flux:field>
+        </div>
+
+        <div class="mt-6 flex justify-end gap-3">
+            <flux:button wire:click="$set('showExportModal', false)" variant="ghost">Cancel</flux:button>
+            <flux:button wire:click="exportCsv" variant="primary" icon="arrow-down-tray">
+                Download CSV
+            </flux:button>
+        </div>
     </flux:modal>
 </div>

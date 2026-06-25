@@ -230,7 +230,7 @@ new #[Title('Payment Gateways')] class extends Component
         </div>
 
         <flux:text class="text-xs text-zinc-500">
-            Example: if 1 USD = 18.50 ZAR, enter <strong>18.50</strong>. A R{{ number_format((float) $pesepayExchangeRate * 10, 2) }} order will be charged USD 10.00.
+            Example: if 1 USD = 18.50 ZAR, enter <strong>18.50</strong>. A R{{ fmt_price((float) $pesepayExchangeRate * 10) }} order will be charged USD 10.00.
         </flux:text>
     </div>
 

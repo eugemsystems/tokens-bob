@@ -604,7 +604,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;gap:16px;flex-wrap:wrap;">
                 <div>
                     <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:rgba(255,255,255,0.35);margin:0 0 4px;font-family:'Azeret Mono',monospace;">Completing payment</p>
-                    <p style="font-size:28px;font-weight:900;color:#DDF247;margin:0 0 2px;line-height:1;">R{{ number_format($this->cartTotal, 2) }}</p>
+                    <p style="font-size:28px;font-weight:900;color:#DDF247;margin:0 0 2px;line-height:1;">R{{ fmt_price($this->cartTotal) }}</p>
                     <p style="font-size:12px;color:rgba(255,255,255,0.40);margin:0;font-family:'Azeret Mono',monospace;">{{ $customerEmail }}</p>
                 </div>
                 <button
@@ -692,14 +692,14 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                     </div>
                                     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
                                         <span style="font-size:12px;color:rgba(255,255,255,0.35);font-family:'Azeret Mono',monospace;">×{{ $qty }}</span>
-                                        <span style="font-size:15px;font-weight:800;color:#fff;">R{{ number_format($cat->price * $qty, 2) }}</span>
+                                        <span style="font-size:15px;font-weight:800;color:#fff;">R{{ fmt_price($cat->price * $qty) }}</span>
                                     </div>
                                 </div>
                             @endif
                         @endforeach
                         <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px;">
                             <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.50);text-transform:uppercase;letter-spacing:2px;">Total</span>
-                            <span style="font-size:26px;font-weight:900;color:#DDF247;">R{{ number_format($this->cartTotal, 2) }}</span>
+                            <span style="font-size:26px;font-weight:900;color:#DDF247;">R{{ fmt_price($this->cartTotal) }}</span>
                         </div>
                     </div>
 
@@ -776,14 +776,14 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
 
                         <div style="display:flex;align-items:center;gap:8px;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.18);border-radius:10px;padding:10px 14px;font-size:12px;color:#4ade80;font-family:'Azeret Mono',monospace;">
                             <svg style="width:13px;height:13px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                            Paying R{{ number_format($this->cartTotal, 2) }} · {{ $customerEmail }}
+                            Paying R{{ fmt_price($this->cartTotal) }} · {{ $customerEmail }}
                         </div>
 
                         {{-- PayFast onsite --}}
                         @if ($checkoutType === 'onsite' && ! $pollingForPayment)
                             <div x-data="{ processing: false, pfUuid: '' }" x-init="pfUuid = $wire.paymentUuid || ''" x-on:payfast-uuid-ready.window="pfUuid = $event.detail.uuid; processing = false;" style="background:#1a1a1a;border-radius:18px;border:1px solid rgba(255,255,255,0.08);padding:28px;">
                                 <button x-bind:disabled="processing || !pfUuid" x-on:click="processing = true; window.payfast_do_onsite_payment({ uuid: pfUuid }, (result) => { result === true ? $wire.finalizeOrder() : ($wire.cancelPayment(), processing = false); });" style="width:100%;background:#DDF247;color:#111;font-weight:900;font-size:15px;padding:15px;border-radius:13px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                                    <span x-show="!processing" style="display:flex;align-items:center;gap:8px;"><svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>Pay R{{ number_format($this->cartTotal, 2) }}</span>
+                                    <span x-show="!processing" style="display:flex;align-items:center;gap:8px;"><svg style="width:17px;height:17px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>Pay R{{ fmt_price($this->cartTotal) }}</span>
                                     <span x-show="processing">Processing…</span>
                                 </button>
                             </div>
@@ -836,7 +836,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
                                             <flux:input wire:model="cardExpiry" label="Expiry (MM/YY)" placeholder="MM/YY" inputmode="numeric" autocomplete="cc-exp" maxlength="5" />
                                             <flux:input wire:model="cardCvv" label="CVV" type="password" placeholder="•••" inputmode="numeric" autocomplete="cc-csc" maxlength="4" />
                                         </div>
-                                        <button type="submit" style="width:100%;background:#DDF247;color:#111;font-weight:900;font-size:15px;padding:15px;border-radius:13px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;">Pay R{{ number_format($this->cartTotal, 2) }}</button>
+                                        <button type="submit" style="width:100%;background:#DDF247;color:#111;font-weight:900;font-size:15px;padding:15px;border-radius:13px;border:none;font-family:'Manrope',sans-serif;cursor:pointer;">Pay R{{ fmt_price($this->cartTotal) }}</button>
                                     @endif
                                 </form>
                             </div>

@@ -329,7 +329,7 @@ new #[Title('Categories')] class extends Component
                         </flux:table.cell>
 
                         <flux:table.cell variant="strong">
-                            R{{ number_format($category->price, 2) }}
+                            R{{ fmt_price($category->price) }}
                         </flux:table.cell>
 
                         <flux:table.cell align="center">

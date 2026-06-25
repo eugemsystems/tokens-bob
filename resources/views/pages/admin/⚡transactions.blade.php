@@ -1,8 +1,12 @@
 <?php
 
+use App\Enums\TokenStatus;
 use App\Enums\TransactionStatus;
+use App\Jobs\SendPurchaseEmail;
+use App\Models\Token;
 use App\Models\Transaction;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -25,6 +29,9 @@ new #[Title('Transactions')] class extends Component
     #[Url]
     public string $sortDirection = 'desc';
 
+    public ?int $reprocessingId = null;
+    public bool $showReprocessModal = false;
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -45,6 +52,51 @@ new #[Title('Transactions')] class extends Component
         }
 
         $this->resetPage();
+    }
+
+    public function confirmReprocess(int $id): void
+    {
+        $this->reprocessingId = $id;
+        $this->showReprocessModal = true;
+    }
+
+    public function reprocess(): void
+    {
+        $transaction = Transaction::find($this->reprocessingId);
+
+        if (! $transaction || $transaction->status !== TransactionStatus::Pending) {
+            $this->showReprocessModal = false;
+            $this->reprocessingId = null;
+
+            return;
+        }
+
+        DB::transaction(function () use ($transaction): void {
+            $transaction->update([
+                'status' => TransactionStatus::Completed,
+            ]);
+
+            if (! $transaction->is_webhook_purchase) {
+                Token::where('transaction_id', $transaction->id)
+                    ->where('status', TokenStatus::Reserved)
+                    ->update(['status' => TokenStatus::Sold]);
+            }
+        });
+
+        if (! $transaction->is_webhook_purchase) {
+            SendPurchaseEmail::dispatch($transaction->id, 'token');
+        }
+
+        $this->showReprocessModal = false;
+        $this->reprocessingId = null;
+
+        $this->dispatch('flux:toast', variant: 'success', message: 'Transaction reprocessed — activation triggered.');
+    }
+
+    #[Computed]
+    public function reprocessingTransaction(): ?Transaction
+    {
+        return $this->reprocessingId ? Transaction::find($this->reprocessingId) : null;
     }
 
     #[Computed]
@@ -141,6 +193,7 @@ new #[Title('Transactions')] class extends Component
                 <flux:table.column>Status</flux:table.column>
                 <flux:table.column>Payment ID</flux:table.column>
                 <flux:table.column>Gateway Ref</flux:table.column>
+                <flux:table.column></flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
@@ -189,10 +242,22 @@ new #[Title('Transactions')] class extends Component
                                 {{ $tx->gateway_payment_id ?? '—' }}
                             </span>
                         </flux:table.cell>
+
+                        <flux:table.cell align="end">
+                            @if ($tx->status === TransactionStatus::Pending)
+                                <flux:button
+                                    wire:click="confirmReprocess({{ $tx->id }})"
+                                    variant="ghost"
+                                    size="sm"
+                                    icon="arrow-path"
+                                    tooltip="Reprocess — mark as completed and trigger activation"
+                                />
+                            @endif
+                        </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="7" class="py-12 text-center text-zinc-500">
+                        <flux:table.cell colspan="8" class="py-12 text-center text-zinc-500">
                             @if ($search || $statusFilter !== 'all')
                                 No transactions match your filters.
                             @else
@@ -204,4 +269,50 @@ new #[Title('Transactions')] class extends Component
             </flux:table.rows>
         </flux:table>
     </div>
+
+    {{-- ── Reprocess Confirmation Modal ── --}}
+    <flux:modal wire:model="showReprocessModal" class="max-w-md">
+        @if ($this->reprocessingTransaction)
+            @php $tx = $this->reprocessingTransaction; @endphp
+
+            <flux:heading size="lg">Reprocess Transaction</flux:heading>
+            <flux:text class="mt-2 text-zinc-400">
+                This will mark the transaction as <strong class="text-white">Completed</strong> and
+                @if ($tx->is_webhook_purchase)
+                    fire the partner webhook to trigger account activation.
+                @else
+                    mark the tokens as sold and send the purchase email.
+                @endif
+            </flux:text>
+
+            <div class="mt-4 rounded-lg border border-zinc-700 bg-zinc-900 p-4 text-sm space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">Customer</span>
+                    <span class="text-zinc-200">{{ $tx->customer_email }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">Amount</span>
+                    <span class="font-semibold text-white">R{{ number_format($tx->amount, 2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">Type</span>
+                    <span class="text-zinc-200">{{ $tx->is_webhook_purchase ? 'Subscription / Webhook' : 'Token Purchase' }}</span>
+                </div>
+                @if ($tx->gateway_payment_id)
+                    <div class="flex justify-between">
+                        <span class="text-zinc-500">Gateway Ref</span>
+                        <span class="font-mono text-xs text-zinc-300">{{ $tx->gateway_payment_id }}</span>
+                    </div>
+                @endif
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <flux:button wire:click="$set('showReprocessModal', false)" variant="ghost">Cancel</flux:button>
+                <flux:button wire:click="reprocess" variant="primary" wire:loading.attr="disabled">
+                    <span wire:loading.remove wire:target="reprocess">Confirm & Reprocess</span>
+                    <span wire:loading wire:target="reprocess">Processing…</span>
+                </flux:button>
+            </div>
+        @endif
+    </flux:modal>
 </div>

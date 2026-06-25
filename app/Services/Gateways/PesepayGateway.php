@@ -4,6 +4,7 @@ namespace App\Services\Gateways;
 
 use App\Contracts\PaymentGateway;
 use App\Contracts\SeamlessGateway;
+use App\Models\PesepayLog;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
@@ -93,12 +94,32 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             $apiMessage = $response['json']['message'] ?? null;
             $message = ($apiMessage && ! str_contains($apiMessage, 'No message')) ? $apiMessage : 'Payment request failed. Please try again.';
 
+            PesepayLog::create([
+                'transaction_id' => $transaction->id,
+                'event' => 'make_payment',
+                'payment_method' => $paymentMethodCode,
+                'http_status' => $response['status'],
+                'success' => false,
+                'error_message' => $message,
+                'raw_payload' => $response['json'] ?? ['body' => $response['body']],
+            ]);
+
             return ['success' => false, 'reference_number' => '', 'poll_url' => '', 'message' => $message];
         }
 
         $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
+            PesepayLog::create([
+                'transaction_id' => $transaction->id,
+                'event' => 'make_payment',
+                'payment_method' => $paymentMethodCode,
+                'http_status' => $response['status'],
+                'success' => false,
+                'error_message' => 'Decryption failed',
+                'raw_payload' => $response['json'],
+            ]);
+
             return ['success' => false, 'reference_number' => '', 'poll_url' => '', 'message' => 'Invalid response from payment gateway.'];
         }
 
@@ -106,6 +127,19 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             'transaction_id' => $transaction->id,
             'reference_number' => $data['referenceNumber'] ?? null,
             'status' => $data['transactionStatus'] ?? null,
+        ]);
+
+        PesepayLog::create([
+            'transaction_id' => $transaction->id,
+            'event' => 'make_payment',
+            'reference_number' => $data['referenceNumber'] ?? null,
+            'payment_method' => $paymentMethodCode,
+            'http_status' => $response['status'],
+            'transaction_status' => $data['transactionStatus'] ?? null,
+            'status_code' => $data['transactionStatusCode'] ?? null,
+            'status_description' => $data['transactionStatusDescription'] ?? null,
+            'success' => true,
+            'raw_payload' => $data,
         ]);
 
         return [
@@ -135,6 +169,15 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
                 'body' => $response['body'],
             ]);
 
+            PesepayLog::create([
+                'event' => 'check_status',
+                'reference_number' => $referenceNumber,
+                'http_status' => $response['status'],
+                'success' => false,
+                'error_message' => $response['json']['message'] ?? $response['body'],
+                'raw_payload' => $response['json'] ?? ['body' => $response['body']],
+            ]);
+
             return null;
         }
 
@@ -147,6 +190,18 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             'status_code' => $data['transactionStatusCode'] ?? null,
             'status_description' => $data['transactionStatusDescription'] ?? null,
             'decrypt_ok' => $data !== null,
+        ]);
+
+        PesepayLog::create([
+            'event' => 'check_status',
+            'reference_number' => $referenceNumber,
+            'http_status' => $response['status'],
+            'transaction_status' => $data['transactionStatus'] ?? null,
+            'status_code' => $data['transactionStatusCode'] ?? null,
+            'status_description' => $data['transactionStatusDescription'] ?? null,
+            'success' => $data !== null,
+            'error_message' => $data === null ? 'Decryption failed' : null,
+            'raw_payload' => $data ?? $response['json'],
         ]);
 
         if ($data === null) {
@@ -218,12 +273,32 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             $apiMessage = $response['json']['message'] ?? null;
             $message = ($apiMessage && ! str_contains($apiMessage, 'No message')) ? $apiMessage : 'Card payment request failed. Please try again.';
 
+            PesepayLog::create([
+                'transaction_id' => $transaction->id,
+                'event' => 'card_payment',
+                'payment_method' => $paymentMethodCode,
+                'http_status' => $response['status'],
+                'success' => false,
+                'error_message' => $message,
+                'raw_payload' => $response['json'] ?? ['body' => $response['body']],
+            ]);
+
             return ['success' => false, 'reference_number' => '', 'transaction_status' => '', 'redirect_url' => '', 'message' => $message];
         }
 
         $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
+            PesepayLog::create([
+                'transaction_id' => $transaction->id,
+                'event' => 'card_payment',
+                'payment_method' => $paymentMethodCode,
+                'http_status' => $response['status'],
+                'success' => false,
+                'error_message' => 'Decryption failed',
+                'raw_payload' => $response['json'],
+            ]);
+
             return ['success' => false, 'reference_number' => '', 'transaction_status' => '', 'redirect_url' => '', 'message' => 'Invalid response from payment gateway.'];
         }
 
@@ -236,6 +311,18 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             'reference_number' => $data['referenceNumber'] ?? null,
             'poll_url' => $data['pollUrl'] ?? null,
             'transaction_metadata' => $data['transactionMetadata'] ?? null,
+        ]);
+
+        PesepayLog::create([
+            'transaction_id' => $transaction->id,
+            'event' => 'card_payment',
+            'payment_method' => $paymentMethodCode,
+            'http_status' => $response['status'],
+            'transaction_status' => $data['transactionStatus'] ?? null,
+            'status_code' => $data['transactionStatusCode'] ?? null,
+            'status_description' => $data['transactionStatusDescription'] ?? null,
+            'success' => true,
+            'raw_payload' => $data,
         ]);
 
         // referenceNumber is null for card payments; extract it from pollUrl query string
@@ -290,12 +377,30 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             $apiMessage = $response['json']['message'] ?? null;
             $message = ($apiMessage && ! str_contains($apiMessage, 'No message')) ? $apiMessage : 'Failed to initiate card payment. Please try again.';
 
+            PesepayLog::create([
+                'transaction_id' => $transaction->id,
+                'event' => 'initiate_transaction',
+                'http_status' => $response['status'],
+                'success' => false,
+                'error_message' => $message,
+                'raw_payload' => $response['json'] ?? ['body' => $response['body']],
+            ]);
+
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => $message];
         }
 
         $data = $this->decryptPayload($response['json']['payload'] ?? '');
 
         if ($data === null) {
+            PesepayLog::create([
+                'transaction_id' => $transaction->id,
+                'event' => 'initiate_transaction',
+                'http_status' => $response['status'],
+                'success' => false,
+                'error_message' => 'Decryption failed',
+                'raw_payload' => $response['json'],
+            ]);
+
             return ['success' => false, 'reference_number' => '', 'redirect_url' => '', 'message' => 'Invalid response from payment gateway.'];
         }
 
@@ -304,6 +409,16 @@ class PesepayGateway implements PaymentGateway, SeamlessGateway
             'reference_number' => $data['referenceNumber'] ?? null,
             'redirect_url' => $data['redirectUrl'] ?? null,
             'transaction_status' => $data['transactionStatus'] ?? null,
+        ]);
+
+        PesepayLog::create([
+            'transaction_id' => $transaction->id,
+            'event' => 'initiate_transaction',
+            'reference_number' => $data['referenceNumber'] ?? null,
+            'http_status' => $response['status'],
+            'transaction_status' => $data['transactionStatus'] ?? null,
+            'success' => true,
+            'raw_payload' => $data,
         ]);
 
         return [

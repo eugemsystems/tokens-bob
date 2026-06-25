@@ -53,7 +53,8 @@ new #[Title('Transactions')] class extends Component
         return Transaction::with('token.category')
             ->when($this->search, fn ($q) => $q->where('customer_email', 'like', "%{$this->search}%")
                 ->orWhere('customer_phone', 'like', "%{$this->search}%")
-                ->orWhere('pf_payment_id', 'like', "%{$this->search}%"))
+                ->orWhere('pf_payment_id', 'like', "%{$this->search}%")
+                ->orWhere('gateway_payment_id', 'like', "%{$this->search}%"))
             ->when($this->statusFilter !== 'all', fn ($q) => $q->where('status', $this->statusFilter))
             ->orderBy($this->sortBy, $this->sortDirection)
             ->paginate(20);
@@ -97,7 +98,7 @@ new #[Title('Transactions')] class extends Component
         <div class="flex-1">
             <flux:input
                 wire:model.live.debounce.300ms="search"
-                placeholder="Search by email, phone or payment ID…"
+                placeholder="Search by email, phone, payment ID or gateway ref…"
                 icon="magnifying-glass"
                 clearable
             />

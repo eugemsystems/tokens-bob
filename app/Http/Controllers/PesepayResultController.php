@@ -70,8 +70,10 @@ class PesepayResultController extends Controller
             return response('', 200);
         }
 
-        DB::transaction(function () use ($transaction, $status, $referenceNumber): void {
-            if ($status === 'SUCCESS') {
+        $isSuccess = in_array($status, ['SUCCESS', 'PROCESSED'], true);
+
+        DB::transaction(function () use ($transaction, $referenceNumber, $isSuccess): void {
+            if ($isSuccess) {
                 $transaction->update([
                     'status' => TransactionStatus::Completed,
                     'gateway_payment_id' => $referenceNumber,
@@ -89,7 +91,7 @@ class PesepayResultController extends Controller
             }
         });
 
-        if ($status === 'SUCCESS') {
+        if ($isSuccess) {
             SendPurchaseEmail::dispatch($transaction->id, 'token');
         }
 

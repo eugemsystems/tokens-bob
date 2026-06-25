@@ -375,7 +375,7 @@ new #[Title('Checkout')] #[Layout('layouts.public')] class extends Component
         if ($gateway instanceof SeamlessGateway) {
             $status = $gateway->checkStatus($this->pesepayReferenceNumber);
 
-            if ($status && $status['transaction_status'] === 'SUCCESS') {
+            if ($status && in_array($status['transaction_status'], ['SUCCESS', 'PROCESSED'], true)) {
                 if ($transaction && $transaction->status !== TransactionStatus::Completed) {
                     DB::transaction(function () use ($transaction): void {
                         $transaction->update([

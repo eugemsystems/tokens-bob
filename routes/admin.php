@@ -13,5 +13,6 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::livewire('/settings', 'pages::admin.settings')->name('settings');
     Route::livewire('/webhook-logs', 'pages::admin.webhook-logs')->name('webhook-logs');
     Route::livewire('/pesepay-logs', 'pages::admin.pesepay-logs')->name('pesepay-logs');
+    Route::livewire('/pesepay-status-checks', 'pages::admin.pesepay-status-checks')->name('pesepay-status-checks');
     Route::livewire('/queue', 'pages::admin.queue')->name('queue');
 });

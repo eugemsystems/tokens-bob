@@ -48,6 +48,9 @@
                     <flux:sidebar.item icon="document-magnifying-glass" :href="route('admin.pesepay-logs')" :current="request()->routeIs('admin.pesepay-logs')" wire:navigate>
                         {{ __('PesePay Logs') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="clock" :href="route('admin.pesepay-status-checks')" :current="request()->routeIs('admin.pesepay-status-checks')" wire:navigate>
+                        {{ __('Status Checks') }}
+                    </flux:sidebar.item>
                     <flux:sidebar.item icon="queue-list" :href="route('admin.queue')" :current="request()->routeIs('admin.queue')" wire:navigate>
                         {{ __('Queue') }}
                     </flux:sidebar.item>

@@ -16,8 +16,8 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-#[Signature('pesepay:check-payments')]
-#[Description('Check PesePay payment status for pending transactions created in the last hour and complete any that have succeeded.')]
+#[Signature('pesepay:check-payments {--from= : Start datetime e.g. "2026-06-24 00:00:00"} {--to= : End datetime e.g. "2026-06-25 23:59:59"} {--hours=1 : Number of hours back to look (default: 1, ignored if --from is set)}')]
+#[Description('Check PesePay payment status for pending transactions and complete any that have succeeded.')]
 class CheckPesepayPayments extends Command
 {
     public function __construct(private readonly PesepayGateway $pesepay)
@@ -29,13 +29,23 @@ class CheckPesepayPayments extends Command
     {
         $batchId = Str::uuid()->toString();
 
+        $from = $this->option('from')
+            ? now()->parse($this->option('from'))
+            : now()->subHours((int) $this->option('hours'));
+
+        $to = $this->option('to')
+            ? now()->parse($this->option('to'))
+            : now();
+
+        $this->info("Checking transactions from {$from->format('d M Y H:i:s')} to {$to->format('d M Y H:i:s')}.");
+
         $transactions = Transaction::where('status', TransactionStatus::Pending)
             ->where('gateway', 'pesepay')
-            ->where('created_at', '>=', now()->subHour())
+            ->whereBetween('created_at', [$from, $to])
             ->get();
 
         if ($transactions->isEmpty()) {
-            $this->info('No pending PesePay transactions within the last hour.');
+            $this->info('No pending PesePay transactions in the given period.');
 
             return self::SUCCESS;
         }

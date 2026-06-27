@@ -21,6 +21,9 @@
                     <flux:sidebar.item icon="chart-bar" :href="route('admin.dashboard')" :current="request()->routeIs('admin.dashboard')" wire:navigate>
                         {{ __('Analytics') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="presentation-chart-line" :href="route('admin.analytics')" :current="request()->routeIs('admin.analytics')" wire:navigate>
+                        {{ __('Tx Analytics') }}
+                    </flux:sidebar.item>
                     <flux:sidebar.item icon="tag" :href="route('admin.categories')" :current="request()->routeIs('admin.categories')" wire:navigate>
                         {{ __('Categories') }}
                     </flux:sidebar.item>

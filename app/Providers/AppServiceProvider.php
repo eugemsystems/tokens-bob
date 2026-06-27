@@ -17,7 +17,10 @@ use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        require_once app_path('helpers.php');
+    }
 
     public function boot(): void
     {

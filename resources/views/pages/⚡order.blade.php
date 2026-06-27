@@ -176,9 +176,9 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
             </div>
 
             @if ($isPartnerPurchase)
-                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 10px;line-height:1.15;">Your BobTV Account Has Been Activated!</h1>
+                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 10px;line-height:1.15;">Your Account Has Been Activated!</h1>
                 <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;line-height:22px;">
-                    Your BobTV subscription has been successfully activated.<br>
+                    Your account subscription has been successfully activated.<br>
                     A confirmation has been sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>.
                 </p>
             @else
@@ -220,9 +220,9 @@ new #[Title('Order Confirmation')] #[Layout('layouts.public')] class extends Com
 
             {{-- Heading --}}
             @if ($isPartnerPurchase)
-                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 8px;line-height:1.15;">Your BobTV Account Has Been Activated!</h1>
+                <h1 style="text-align:center;font-size:clamp(24px,5vw,34px);font-weight:900;color:#fff;margin:0 0 8px;line-height:1.15;">Your Account Has Been Activated!</h1>
                 <p style="text-align:center;font-size:14px;color:rgba(255,255,255,0.45);margin:0 0 40px;font-family:'Azeret Mono',monospace;">
-                    Your BobTV subscription is now active.<br>
+                    Your account subscription is now active.<br>
                     Confirmation sent to <strong style="color:rgba(255,255,255,0.65);">{{ $customerEmail }}</strong>
                     &nbsp;·&nbsp; Ref <strong style="color:rgba(255,255,255,0.65);">#{{ $transactionId }}</strong>
                 </p>
